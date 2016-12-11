@@ -196,7 +196,7 @@ nothing to commit, working directory clean
   Installation: `sudo apt-get install git-gui`. graphical commit tool, in Tcl/Tk, distributed with Git (usually in git-gui package). The tool is same on windows system.
 
 * 同一个project可以push到多个server上
-编辑代码库中的`.git/config`文件，在需要的romote下添加新的url即可例如：  
+  编辑代码库中的`.git/config`文件，在需要的romote下添加新的url即可例如：  
 ```ini
 [core]
 	repositoryformatversion = 0
@@ -333,7 +333,7 @@ INFO: loading config from /etc/shadowsocks.json
 
 * a suggest website 
   `http://51.ruyo.net/shadowsocks/`  
-  `http://170434.vhost251.cloudvhost.cn/user/index.php`  (usr:2397771090@qq.com pw:456123789)
+  `http://170434.vhost251.cloudvhost.cn/user/index.php` `http://ordshadowsocks.sunnywell.top/user/index.php`
 
 ####chrome adobe flash is out of date
 open `chrome://components/`, and check for update of Adobe Flash Player. This operation need a global proxy of system. Because we cant access google's server.
