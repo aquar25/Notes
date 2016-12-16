@@ -27,10 +27,10 @@ with open("pythonstudy.py") as demofile:
 
 def fib(max):
     """function's docstring"""
-	x, y = 0, 1
-	while x < max:
-		yield x
-		x, y = y, x+y
+    x, y = 0, 1
+    while x < max:
+      yield x
+      x, y = y, x+y
 
 
 # for x in fib(10):
@@ -92,3 +92,16 @@ tvs['got'] = got
 tvs['hoc'] = hoc
 pprint.pprint(tvs)
 
+def double(arg):
+    arg = arg * 2
+    print(arg) # [1, 2, 1, 2]
+
+def change(arg):
+    arg.append('data')
+
+val = [1,2]
+double(val) 
+print(val) #[1, 2]
+
+change(val)
+print(val) # [1, 2, 'data']

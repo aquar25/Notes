@@ -18,6 +18,18 @@ Python is object-based as opposed to purely object-oriented.
 
 Everything in python is an object, so anything can be assigned to a variable.
 
+#### PEP
+
+PEP is shorthand for Python Enhancement Protocol. The details of PEP documents can be very technical and esoteric. The vast majority of Python programmers are aware of their existence but rarely interact with PEPs in detail. PEP 8 is the style guide for Python code. PEP 8 documentation states that readability counts, and that code is read much more often than it is written. You should try to ensure your code to conform to the PEP 8 guidelines.
+
+##### PEP 8 Check
+
+1. Install pytest and pep8 `python3 -m pip install pytest` and `python3 -m pip install pytest-pep8`
+2. In the same folder of your python file, run `py.test --pep8 commonfun.py`
+3. modify the file as the message
+
+
+
 ### Operator
 
 python supports `+= , -=` but`++, --`
@@ -40,6 +52,8 @@ else:
 ```
 
 Python also supports write condition statements in one line. `x = 10 if y>3 else 20` But it is not used widely, as it's hard to read.
+
+Every object in Python has a truth value associated with it. Use built-in function `bool(object)`to check the truth of the object. Any non-empty data structure evaluates to TRUE.
 
 ##### In 
 
@@ -206,6 +220,8 @@ Set is an unordered set of unique objects.
 
 * `myset.intersection(hiset)` 获取两个集合的交集
 
+* 当一个集合为空时，此时解释器使用set()来表示它。因为{}标识一个空的字典
+
 
 
 
@@ -285,18 +301,101 @@ with open("pythonstudy.py", encoding="utf-8") as demofile:
 
 
 ```python
-def fib(max):
+def cal_fib(max:int) -> int : # annotation tells that this function recevies an int argument and returns an int value.
     """function's docstring"""
 	x, y = 0, 1
 	while x < max:
 		yield x
 		x, y = y, x+y
-
 ```
 
+PEP 8 suggests that words in a function's name should be separated by an underscore.
 
+Python 3 supports a notation called annotations or  type hints. Function annotations are optional and informational. 即使一个函数增加了注解，解释器也不会检测这个函数的参数和返回值是否符合预期，注解只是为了方便调用者使用的说明，可以通过调用`help(fun_name)`来查看函数的注解信息
 
+```python
+def letter_in_phrase(phrase:str, letters:str='aeiou') -> set :
+    """Get the letters in the phrase"""
+    return set(letters).intersection(set(phrase))
+```
 
+Python中传入参数除了和其他语言一样按照顺序传入，还可以支持使用keyword赋值方法，将指定的参数给形参，不需要关心参数的顺序。例如
+
+```python
+print(letter_in_phrase('james blunt is a good singer', 'life'))
+print(letter_in_phrase(letters='life', phrase='james blunt is a good singer'))
+```
+
+Python中对于list/dict/set这些mutable可变类型的参数是引用传递，对于str/int/tuple这些immutable参数是值传递，因为这些参数类型本来就不能被修改。
+
+```python
+def double(arg):
+    arg = arg * 2
+    print(arg) # [1, 2, 1, 2]
+
+def change(arg):
+    arg.append('data')
+
+val = [1,2]
+double(val) 
+print(val) #[1, 2]
+
+change(val)
+print(val) # [1, 2, 'data']
+```
+
+上面例子中，虽然对于double()传入的是一个list，但是函数内部在执行时，先执行了=的右侧的乘法运算，并得到一个对新产生对象的引用，这个引用覆盖了作为参数引用arg（arg原来指向函数外部的list，现在指向了新生成的对象）而原来的对象并没有被修改。而函数change()则是直接修改了arg引用的list。
+
+### Module
+
+Module is any file that contains functions.
+
+Python中查找module的路径有三个：
+
+1. Your current working directory
+2. Your interpreter's site-packages locations
+3. The standard library locations
+
+**site-packages** contain any third-party Python modules which you may have installed.
+
+##### Install Module to site-packages
+
+Python 3.4 includes a module called *setuptools* , which can be used to add any module into site-packages.
+
+1. Create a distribution description which defines the module we want setuptools to install.
+
+   新建一个文件夹用来放模块的文件，并在该文件夹下创建两个文件`setup.py` `README.txt`.其中readme文件用来描述模块的功能，内容可以为空。`setup.py`文件描述模块并调用setuptools中setup函数。
+
+   ```python
+   #!/usr/bin/env python
+   # -*- coding:utf-8 -*-
+
+   from setuptools import setup
+
+   # call the setup() function
+   setup(
+       name='commonfun',
+       version='1.0',
+       description='Common functions',
+       author='myname',
+       author_email='myemail@mail.com',
+       url='xxx.com',
+       py_modules=['commonfun'], # a list of '.py' files to include in the package.
+       )
+
+   ```
+
+   ​
+
+2. Generate a distribution file. 在模块的问加夹下执行`$python3 setup.py sdist` 生成一个压缩包`commonfun-1.0.tar.gz`
+
+3. Install the distribution file. Using pip (Package Installer for Python) to install a distribution file.
+
+   `python3 -m pip install commonfun-1.0.tar.gz`
+
+在安装过自定义的模块后，就可以在任意目录import这个模块了。
+
+最后，可以将自己编写的module放到[PyPI](https://pypi.python.org/pypi)(pronounced "pie-pee-eye", short for the Python Package Index)上.
 
 ###Generator
 
