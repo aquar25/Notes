@@ -21,11 +21,12 @@ print(re.sub('([^aeiou])y$', r'\1ies', 'funny'))
 temp = (a, b, c) = range(3)
 
 linecount = 0
-with open("pythonstudy.py", encoding="utf-8") as demofile:
+with open("pythonstudy.py") as demofile:
 	for line in demofile:
 		linecount+=1
 
 def fib(max):
+    """function's docstring"""
 	x, y = 0, 1
 	while x < max:
 		yield x
@@ -76,6 +77,18 @@ print(sorted(["12", "2", "132", "4"], key=len))
 
 print(eval('"A" + "B"')) 
 
+mydict = {'name':'GoT', 'producer':'HBO', 'lang':'eng'}
+mydict.setdefault('date',2016) # makesure that key 'date' is initialized
+mydict['date'] = 2010 # we dont need to check the 'date' is in the dict now
 
+for k,v in sorted(mydict.items()):
+    print(k+' is: '+str(v))
 
+import pprint
+got = {'name':'GoT', 'producer':'HBO', 'lang':'eng'}
+hoc = {'name':'House of Card', 'producer':'Netflix', 'lang':'eng'}
+tvs = {}
+tvs['got'] = got
+tvs['hoc'] = hoc
+pprint.pprint(tvs)
 

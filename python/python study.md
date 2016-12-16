@@ -18,9 +18,15 @@ Python is object-based as opposed to purely object-oriented.
 
 Everything in python is an object, so anything can be assigned to a variable.
 
+### Operator
+
+python supports `+= , -=` but`++, --`
+
 ### Statement
 
 #### Condition
+
+In python, `True` and `False` are the two boolean keywords.
 
 ```python
 minute = datetime.datetime.today().minute
@@ -32,6 +38,8 @@ elif minute == 30:
 else:
     print("first of hour")
 ```
+
+Python also supports write condition statements in one line. `x = 10 if y>3 else 20` But it is not used widely, as it's hard to read.
 
 ##### In 
 
@@ -139,27 +147,70 @@ a_list = [x**2 for x in range(10) if x % 2==0]
 
 Tuple is an ordered immutable collection of objects.
 
-元组是不可变的列表，速度比列表快，可以用作字典的key
+元组是不可变的列表，速度比列表快，可以用作字典的key。Perhaps you have a large constant list and you're worried about performance.
 可以使用元组作为函数的返回值，因为元组可以进行元素的一一赋值，如  
 (a, b, c) = range(3)
 a: 0
 b: 1
 c: 2
 
+* every tuple needs to include at least one comma between the parentheses. 当一个元组中只有一个元素是，需要在这个元素后面加上`,` 否则编译器会认为这个支持一个()包围起来的普通数据。`t = ('value')`, the type of `t` is `str`. 正确的写法应该是`t=('value',)` 当元组作为函数的参数和返回值时，也要保证这一点。
+
 ### 字典
 
 Dictionary is an unordered set of key/value pairs. 字典是mutable
+
+Python's dictionary is implemented as a resizeable hash table.
+
+Python's *for* loop can be used to iterate over a dictionary. On each iteration, the key is assigned to the loop variable, which is used to access the data value.
+
+#### 方法
+
+* 通过调用内建函数`sorted(dict)`可以将dict的数据按key进行排序.`sorted()` built-in function doesn't change the ordering of the data you provide to it, but instead returns an ordered copy of the data.
+
+* `dict.items()`returns a list of the key/value pairs. 
+
+  ```python
+  mydict = {'name':'GoT', 'producer':'HBO', 'lang':'eng'}
+  for k,v in sorted(mydict.items()):
+      print(k+' is: '+v)
+  ```
+
+* `dict.setdefault('key', 'defaultvalue')` This method guarantees that a key is always initialized to a default value before it's used. This method does nothing if a key already exists.
+
+  ```python
+  mydict = {'name':'GoT', 'producer':'HBO', 'lang':'eng'}
+  mydict.setdefault('date',2016) # makesure that key 'date' is initialized
+  mydict['date'] = 2010 # we dont need to check the 'date' is in the dict now
+  ```
+
+  ​
 
 ###集合
 
 Set is an unordered set of unique objects.
 
-集合中的元素没有重复的
+集合中的元素没有重复的. Set is much faster than list when lookup is the primary requirement. As lists always perform slow sequential searches, sets should always be preferred for lookup.
 * 统计字符串中出现的字母
-  mystring = "How time flies!"
+
+  ```
+  mystring = &quot;How time flies!&quot;
   print(set(mystring))  # {'m', 'e', '!', 'o', 'i', 's', 'f', 'w', ' ', 'l', 't', 'H'}
+  ```
+
+* list 和set之间可以相互转换，`myset = set(mylist)` or `mylist = list(myset)`
+
+* `myset.union(hiset)` 获取两个集合的并集
+
+* `myset.difference(hiset)` 获取两个集合的差集，myset有的而hiset中没有的
+
+* `myset.intersection(hiset)` 获取两个集合的交集
+
+
+
 
 ###编码
+
 由于世界上的各各个语言的字符太多，而在同一个文本文件中，可能存在多种语言的字符，因此需要一种编码可以覆盖所有语言的所有字符。Unicode就是做这个事情，UTF-32使用4个字节表示所有字符，但是实际上大部分语言一共也没有用到65535个字符，而4个字节的UTF-32中却却存在一堆不是你当前使用语言需要的字符。为了节省空间就定义了utf-16，使用两个字节来表示一个字符字符中，两个字节构成的0-65535之间的每一个数字映射到一个字符。  
 但是使用两个字节表示一个字符又有新问题，不同的系统设备上字节顺序不同，例如俩个字节 12 34 在另一个系统中可能就是34 12的顺序，因此需要字节顺序定义Byte Order Mark(BOM)在文档中定义，如果打开一个以字节FF FE开头的UTF-16文档，你就能确定她的字节顺序是单向的了，如果是以FE FF开头则说明那个字节序时反向的
 
@@ -179,6 +230,8 @@ python3 文件的默认编码为utf-8, in python2, it uses ascii.
 ###字符串
 
 python中可以使用`""`或`''`来标识字符串，一般如果一个字符串中有`'`符号时，才会使用`""`来标识字符串，这样可以避免在字符串中使用`\'`来转义一个字符串符号。例如`strs = "what's ur hope?"`
+
+`"""`or`'''`包围起来的字符串可以跨多行，大部分人偏好用前者。通常用于类或函数的docstrings.
 
 * rstrip() 字符串方法移除每一行尾部的空白
 * lstrip() 方法移除头部的空白
@@ -227,7 +280,26 @@ with open("pythonstudy.py", encoding="utf-8") as demofile:
 		print(line)
 ```
 
+### Function
+
+
+
+```python
+def fib(max):
+    """function's docstring"""
+	x, y = 0, 1
+	while x < max:
+		yield x
+		x, y = y, x+y
+
+```
+
+
+
+
+
 ###Generator
+
 生成器是一个特殊的迭代器
 "yield" 暂停一个函数的执行，"next()"从生成器暂停处恢复执行
 
@@ -346,7 +418,17 @@ import datetime, time
 print(datetime.date.today())
 # get current time in 24h format
 print(time.strftime("%H:%M"))
+
+import pprint
+got = {'name':'GoT', 'producer':'HBO', 'lang':'eng'}
+hoc = {'name':'House of Card', 'producer':'Netflix', 'lang':'eng'}
+tvs = {}
+tvs['got'] = got
+tvs['hoc'] = hoc
+pprint.pprint(tvs)
 ```
+
+标准库中的`pprint()`方法可以将任何数据结构以更适合阅读的格式打印出来，例如`pprint(dict)`
 
 #### Other Library
 
