@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+
+{% block body %} 
+
+<h2>{{ the_title }}</h2>
+
+<form method="post" action="/calc">
+	<table>
+		<p>
+			Calculate the future of your life, please input your birthday:
+		</p>
+		<tr><td>Year:</td><td><input type="text" name="year" width="20"></td></tr>
+		<tr><td>Month:</td><td><input type="text" name="month" width="20"></td></tr>
+		<tr><td>Day:</td><td><input type="text" name="day" width="20"></td></tr>
+	</table>
+	<p>Click to see the future!</p>
+	<p><input type="submit" value="Go!" width="20"></p>
+</form>
+
+{% endblock %}

@@ -18,6 +18,11 @@ Python is object-based as opposed to purely object-oriented.
 
 Everything in python is an object, so anything can be assigned to a variable.
 
+#### Idiom
+
+* `__name__` stand for  the current module. Python use "double underscore, name, double underscore" phrase to name some special use. "dunder name" is shorthand for  "double underscore, name, double underscore". "wonder" is shorthand for "one underscore"
+* `__main__` if a Python code is executed directly by Python, the active namespace is `__main__`. However, if the code is imported as a module,  the `__name__`is the name of imported module.
+
 #### PEP
 
 PEP is shorthand for Python Enhancement Protocol. The details of PEP documents can be very technical and esoteric. The vast majority of Python programmers are aware of their existence but rarely interact with PEPs in detail. PEP 8 is the style guide for Python code. PEP 8 documentation states that readability counts, and that code is read much more often than it is written. You should try to ensure your code to conform to the PEP 8 guidelines.
@@ -421,6 +426,12 @@ print(x, end=" ")  # 0 1 1 2 3 5 8   end=" "，表示每次输出以空格结束
 生成器表达式使用()来定义，返回的也是一个迭代器，可以使用for遍历,next(gen_exp)或者调用tuple/set/list来得到相应的容器  
 `print(tuple(gen_exp)) # (0, 3, 6, 9, 12)`
 
+### Decorator
+
+A function decorator adjusts the behavior of an existing function without you having to change that function's code. Although decorators can also be applied to classes as well as functions, they are mainly applied to functions, which results in most Python programmers referring to them as function decorator.
+
+For example, the route decorator in Flask arranges for the web server to call the function when a request for the URL arrives at the server. The route decorator then waits for any output produced by the decorator function before returning the output to the server, which then returns it to the waiting web browser.
+
 
 ###类
 
@@ -533,7 +544,177 @@ pprint.pprint(tvs)
 
 Pypi is [here](http://pypi.python.org)
 
+### Flask
 
+Template engines let programmers apply the object-oriented notions of inheritance and reuse to the production of textual data, such as web pages. The template engine shipped with Flask is called Jinja2.
+
+Flask comes with a function called `render_template` , which when provide with the name of a template and any required arguments, returns a string of HTML when invoked.
+
+Flask comes with a built-in object called request that provides easy access to posted data. The request object contains a dictionary attribute called *form* that provides access to a HTML form's data posted from the browser.
+
+Flask can associate more than one URL with a given function, which can reduce the need for redirections.
+
+A simple web app：
+
+```python
+#!/usr/bin/env python
+# -*- coding:utf-8 -*-
+
+from flask import Flask, render_template, request, redirect
+
+app = Flask(__name__)
+
+@app.route('/')
+def home() ->'302':
+    # redirect to the future page
+    return redirect('/future')
+
+@app.route('/f')
+@app.route('/future') # GET method by default
+def future_page():
+    return render_template('future.html', the_title='Forsee the Future')
+
+@app.route('/calc', methods=['POST']) # supports only the POST method
+def calc_page() ->'html':
+    month = int(request.form['month'])
+    day = int(request.form['day'])
+    result = get_constellation(month, day)
+    return render_template('result.html', the_title='Your Future is here', result=result)
+
+
+def letter_in_phrase(phrase: str, letters: str='aeiou') -> set:
+    """Get the letters in the phrase"""
+    return set(letters).intersection(set(phrase))
+
+def get_constellation(month, day):
+    days = (21, 20, 21, 21, 22, 22, 23, 24, 24, 24, 23, 22)
+    constellations = ('Capricorn', 'Aquarius', 'Pisces', 'Aries', 
+        'Taurus', 'Gemini', 'Cancer', 'Leo', 'Virgo', 'Libra', 
+        'Scorpio', 'Sagittarius','Capricorn')
+    if day < days[month-1]:
+        return constellations[month-1]
+    else:
+        return constellations[month]
+
+
+if __name__ == '__main__':
+    app.run('0.0.0.0', debug=True)
+
+```
+
+
+
+#### Jinja2
+
+在Jinja2简单语法
+
+* `{{ var_name }}` 来指出这个变量的值通过render传入的
+
+* 定义一个块，这个块可以被继承子模板文件覆盖
+
+  ```
+  {% block block_name %}
+
+  {% endblock %}
+  ```
+
+  ​
+
+* 定义一个基类模板，可以套用到整个网站中
+
+  ```html
+  <!DOCTYPE html>
+  <html>
+  <head>
+  	<title>{{ the_title }}</title>
+  	<link rel="stylesheet" type="text/css" href="static/base.css">
+  </head>
+  <body>
+
+  {% block body %} 
+   
+  {% endblock %}
+
+  </body>
+  </html>
+  ```
+
+  ​
+
+* 一个子模板继承自基类模板，子类中body替换了基类模板中的body
+
+  ```html
+  {% extends 'base.html' %}
+
+  {% block body %} 
+
+  <h2>{{ the_title }}</h2>
+
+  <form method="post" action="/calc">
+  	<table>
+  		<p>
+  			Calculate the future of your life, please input your birthday:
+  		</p>
+  		<tr><td>Year:</td><td><input type="text" name="year" width="20"></td></tr>
+  		<tr><td>Month:</td><td><input type="text" name="month" width="20"></td></tr>
+  		<tr><td>Day:</td><td><input type="text" name="day" width="20"></td></tr>
+  	</table>
+  	<p>Click to see the future!</p>
+  	<p><input type="submit" value="Go!" width="20"></p>
+  </form>
+
+  {% endblock %}
+  ```
+
+  ​
+
+* ​
+
+#### Publish Online
+
+* PythonAnywhere [website](https://www.pythonanywhere.com/)
+
+  可以将开发的Flask程序发布到PythonAnywhere上，有免费空间
+
+  1. 点击到Web标签，创建一个flask web app，先不要点击reload按钮
+
+  2. 切换到Files标签，将自己的webapp目录压缩为zip文件，将zip压缩包上传到根目录，对于依赖的第三方或自己的module包也可以将其tar.gz文件直接上传到根目录
+
+  3. 点击`Open a bash console here`,打开一个bash终端
+
+  4. 在终端中执行`python3 -m pip install your_private_module.tar.gz --user`来安装自定义的模块。注意最后有--user参数，因为PythonAnywhere只允许给当前用户安装模块
+
+  5. 执行`unzip webapp.zip`解压工程到根目录，再执行`mv webapp/* mysite/`将工程文件拷贝到创建的web app目录中
+
+  6. 在Web标签中，点击`WSGI configuration file`,在打开的文件中编辑最后一行的`flask_app` 为自己webapp的python模块名称，系统将主程序的app导入为application使用，记得点击保存
+
+     ```python
+     import sys
+
+     # add your project directory to the sys.path
+     project_home = u'/home/memorywalker/mysite'
+     if project_home not in sys.path:
+         sys.path = [project_home] + sys.path
+
+     # import flask app but need to call it "application" for WSGI to work
+     from webapp import app as application
+     ```
+
+  7. 回到Web标签，点击reload按钮，启动自己的应用程序，访问usrname.pythonanywhere.com可以看到自己的应用程序
+
+#### Http
+
+##### status code
+
+codes: 100-199 are informational message: all is OK, and the sever is providing details related to the client's request.
+
+codes: 200-299 are success messages: the server has received, understood and processed the client's request.
+
+codes 300-399 are redirection messages: the sever is informing the client that the request can be handled elsewhere.
+
+codes 400-499 are client error messages: the server received a request from the client that it does not understand and can't process.
+
+codes in the 500-599 range are server error message: the server received a request from the client, but the server failed while trying to process it.
 
 ### 开发环境
 
