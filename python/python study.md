@@ -258,6 +258,44 @@ python中可以使用`""`或`''`来标识字符串，一般如果一个字符串
 * lstrip() 方法移除头部的空白
 * strip() 方法头尾都移除
 
+
+
+### 文件
+
+`fd = open('filename', 'r+b')` read from and write to new binary file.
+
+文件打开方式，除了`r`之外，如果文件不存在，其他模式会自动创建一个文件：
+
+* `r` 默认的文件打开方式，以读方式打开文件，文件必须存在
+* `w` 以写方式打开，如果文件中存在内容，则清空文件中的内容
+* `a` 追加的方式打开文件，在文件最后追加内容
+* `x`创建一个新文件用来写数据，如果文件已经存在，则返回失败
+
+默认文件以文本模式打开，如果要以二进制打开需要指明选项`b`.
+
+在文件打开后，要记得调用close方法关闭文件，因此通常使用with语句来打开文件，在执行完代码块后，解释器会自动释放资源，调用close。
+
+```python
+fd = open('yourname')
+print('something', file=fd, end='|') # 将内容写入到文件中,使用指定的结束符
+print('thing1', 'things2', 'things3', file=fd, sep='|') # 将所有的字符使用sep指定的分隔符分隔开
+close(fd)
+```
+
+
+
+### with
+
+context management protocol. With statement manages the context with in which its suite runs.
+
+```python
+with open("pythonstudy.py", encoding="utf-8") as demofile:
+	for line in demofile:
+		print(line)
+```
+
+### 
+
 ###正则表达式
 pattern = r'^k?M{0,4}(\bDK\b|K?)$'
 re.search(pattern, "Mmm")	
@@ -293,13 +331,6 @@ find = phonePattern.search("0398-44556677-").groups() #('0398', '44556677', '')
 
 temp = re.findall(r'giv.?', 'mom give me money'); # ['give']
 findall():返回满足查询正则表达式的所有字符串，对于重叠的匹配，则不返回
-
-###with
-```python
-with open("pythonstudy.py", encoding="utf-8") as demofile:
-	for line in demofile:
-		print(line)
-```
 
 ### Function
 
@@ -554,15 +585,19 @@ Flask comes with a built-in object called request that provides easy access to p
 
 Flask can associate more than one URL with a given function, which can reduce the need for redirections.
 
+由于浏览器会自动解析带有`< >`标签的数据，因此如果要显示的数据中有tag标签时，需要将内容进行转义。Flask中提供了`escape()`函数将传入的字符串进行转义，escape返回的时一个Markup对象
+
 A simple web app：
 
 ```python
 #!/usr/bin/env python
 # -*- coding:utf-8 -*-
 
-from flask import Flask, render_template, request, redirect
+from flask import Flask, render_template, request, redirect, escape
 
 app = Flask(__name__)
+
+LOG_FILE = 'req_log.txt'
 
 @app.route('/')
 def home() ->'302':
@@ -579,8 +614,26 @@ def calc_page() ->'html':
     month = int(request.form['month'])
     day = int(request.form['day'])
     result = get_constellation(month, day)
+    log_req(request)
     return render_template('result.html', the_title='Your Future is here', result=result)
 
+@app.route('/reqlog')
+def show_log():
+    contents = []
+    with open(LOG_FILE) as logfile:
+        for line in logfile:
+            contents.append([])
+            for item in line.split('|'):
+                contents[-1].append(escape(item))
+    titles = ('Form Data', 'Remote Addr', 'User Agent')
+    return render_template('reqlog.html',
+                            the_title = 'View Logs',
+                            the_row_titles=titles,
+                            the_data=contents,)
+
+def log_req(req:'flask_request') -> None:
+    with open(LOG_FILE, 'a') as logfile:
+        print(req.form, req.remote_addr, req.user_agent, file=logfile, sep='|')
 
 def letter_in_phrase(phrase: str, letters: str='aeiou') -> set:
     """Get the letters in the phrase"""
@@ -596,10 +649,8 @@ def get_constellation(month, day):
     else:
         return constellations[month]
 
-
 if __name__ == '__main__':
     app.run('0.0.0.0', debug=True)
-
 ```
 
 
@@ -666,9 +717,34 @@ if __name__ == '__main__':
   {% endblock %}
   ```
 
-  ​
+* 在Jinja中使用for循环语句，`the_data`是一个list的list
 
-* ​
+  ```html
+  {% extends 'base.html' %}
+
+  {% block body %} 
+
+  <h2>{{ the_title }}</h2>
+
+  <table>
+  	<tr>
+  		{% for row_title in the_row_titles %}
+  			<th>{{ row_title }}</th>
+  		{% endfor %}
+  	</tr>
+  	{% for log_row in the_data %}
+  		<tr>
+  		{% for item in log_row %}
+  			<td>{{item}}</td>
+  		{% endfor %}
+  		</tr>
+  	{% endfor %}
+  </table>
+
+  {% endblock %}
+  ```
+
+  ​
 
 #### Publish Online
 

@@ -332,8 +332,10 @@ INFO: loading config from /etc/shadowsocks.json
 ```
 
 * a suggest website 
+  `https://www.laodi.pw/user`
   `http://51.ruyo.net/shadowsocks/`  
-  `http://170434.vhost251.cloudvhost.cn/user/index.php` `http://ordshadowsocks.sunnywell.top/user/index.php`
+  `http://170434.vhost251.cloudvhost.cn/user/index.php` 
+  `http://ordshadowsocks.sunnywell.top/user/index.php`
 
 ####chrome adobe flash is out of date
 open `chrome://components/`, and check for update of Adobe Flash Player. This operation need a global proxy of system. Because we cant access google's server.
