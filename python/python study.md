@@ -534,6 +534,42 @@ key_function(each item)的结果和另一个包含着所有共享这个key 结�
   `eval("pow(5, 2)") # 25`
 
 
+### Database
+
+#### Step of using database
+
+1. Define your connections characteristics
+2. Import your database driver
+3. Establish a connection to the server
+4. Open a cursor
+5. Do the SQL thing.
+
+```python
+def database_work():
+    # connect to the database, if file is not exist, this will create it 
+    conn = sqlite3.connect('log.db')
+    # create a Cursor
+    cursor = conn.cursor()
+    showtables = """select name from sqlite_master where type='table' order by name"""
+    cursor.execute(showtables)
+    result = cursor.fetchall()
+    if len(result) == 0:
+         # execute a sql statement
+         cursor.execute('create table log (id INTEGER PRIMARY KEY AUTOINCREMENT, request varchar(50))')
+    else:
+        print(result)
+    # insert a data
+    cursor.execute("insert into log (request) values ('christmas')")
+    # close the Cursor
+    cursor.close()
+    # commit the transaction
+    conn.commit()
+    # close the connect
+    conn.close()
+```
+
+
+
 ### Standard Library
 
 ```python

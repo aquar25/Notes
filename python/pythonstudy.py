@@ -105,3 +105,30 @@ print(val) #[1, 2]
 
 change(val)
 print(val) # [1, 2, 'data']
+
+import sqlite3
+
+def database_work():
+    # connect to the database, if file is not exist, this will create it 
+    conn = sqlite3.connect('log.db')
+    # create a Cursor
+    cursor = conn.cursor()
+    showtables = """select name from sqlite_master where type='table' order by name"""
+    cursor.execute(showtables)
+    result = cursor.fetchall()
+    if len(result) == 0:
+         # execute a sql statement
+         cursor.execute('create table log (id INTEGER PRIMARY KEY AUTOINCREMENT, request varchar(50))')
+    else:
+        print(result)
+    # insert a data
+    cursor.execute("insert into log (request) values ('christmas')")
+    # close the Cursor
+    cursor.close()
+    # commit the transaction
+    conn.commit()
+    # close the connect
+    conn.close()
+
+if __name__ == '__main__':
+    database_work()
