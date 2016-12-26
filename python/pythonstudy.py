@@ -130,5 +130,19 @@ def database_work():
     # close the connect
     conn.close()
 
+class CountFromBy(object):
+    """docstring for CountFromBy"""
+    def __init__(self, v: int = 0, s: int=1) -> None:
+        super(CountFromBy, self).__init__()
+        self.val = v
+        self.step = s
+
+    def increase(self) -> None:
+        self.val += self.step
+
+    def __repr__(self) -> str:
+        return str(self.val)
+        
+
 if __name__ == '__main__':
     database_work()

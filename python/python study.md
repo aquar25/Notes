@@ -286,13 +286,54 @@ close(fd)
 
 ### with
 
-context management protocol. With statement manages the context with in which its suite runs.
+Context management protocol dictates that any class you create must define at least two magic methods:`__enter__` and `__exit__`. When you adhere to the protocol, your class can hook into the with statement. A protocol is an agreed procedure (or set of rules) that is to be adhered to.
+
+The interpreter invokes the object's `__enter__` method before the with statement's suite starts. The  `__enter__` can return a value to the with statement. As the with suite ends, the interpreter always invokes the object's `__exit__` method.  As the code in the with statement's suite may fail (and raise an exception), dunder exit has to be ready to handle this if it happens. 
+
+ `__exit__`  method accepts another 3 arguments `__exit__(self, exc_type, exc_value, exc_trace)` for handle the exception in the with statement.
+
+ With statement manages the context with in which its suite runs.
 
 ```python
 with open("pythonstudy.py", encoding="utf-8") as demofile:
 	for line in demofile:
 		print(line)
 ```
+
+自定义上下文管理协议类
+
+```python
+import sqlite3
+
+# db_config = {
+#     'dbname':DB_FILE,
+#     'tbname':LOG_TABLE_NAME
+#     }
+
+class UseDatabase(object):
+    """docstring for UseDatabase"""
+    def __init__(self, config: dict)->None:
+        super(UseDatabase, self).__init__()
+        self.config = config
+
+    def __enter__(self) -> 'cursor':
+        self.conn = sqlite3.connect(self.config['dbname'])
+        self.cursor = self.conn.cursor()
+        return self.cursor
+
+    def __exit__(self, exc_type, exc_value, exc_trace) -> None:
+        self.conn.commit()
+        self.cursor.close()
+        self.conn.close()
+
+# use it in a with statement
+with UseDatabase(app.config['dbconfig']) as cursor:
+        _sql = "select year, month, day, address, browser from "  + LOG_TABLE_NAME
+        cursor.execute(_sql)
+        contents = cursor.fetchall()
+```
+
+
 
 ### 
 
@@ -382,6 +423,12 @@ print(val) # [1, 2, 'data']
 
 上面例子中，虽然对于double()传入的是一个list，但是函数内部在执行时，先执行了=的右侧的乘法运算，并得到一个对新产生对象的引用，这个引用覆盖了作为参数引用arg（arg原来指向函数外部的list，现在指向了新生成的对象）而原来的对象并没有被修改。而函数change()则是直接修改了arg引用的list。
 
+#### Built-in functions
+
+* `type(obj)` 查看一个对象的类型
+* `id(obj)` displays information on an object's memory address (which is a unique identifier used by the interpreter to keep track of your objects)
+* `hex(int)` convert an integer into a hexadecimal number
+
 ### Module
 
 Module is any file that contains functions.
@@ -463,10 +510,26 @@ A function decorator adjusts the behavior of an existing function without you ha
 
 For example, the route decorator in Flask arranges for the web server to call the function when a request for the URL arrives at the server. The route decorator then waits for any output produced by the decorator function before returning the output to the server, which then returns it to the waiting web browser.
 
-
 ###类
 
+在Python中，习惯使用CamelCase来命名一个类，有全部小写来命名函数。Class behavior is shared by each of its objects, whereas state is not. Each object maintains its own state. 当一个类对象调用类的函数时，python解释器会将代码转为`ClassName.method(obj)`，例如c时`CountFromBy`的对象，执行`c.increase()`，实际执行的是`CountFromBy.increase(c)`,代码中可以直接以解释器的方式调用，但是没人那样用。由于解释器会将对象作为参数传入类的方法，因此在定义类方法时，必然会有一个参数self来指向对象自身。在方法中通过self可以方法对象的属性值。
+
+子类从object类中继承的以双下划线开始的默认方法被称为"The magic methods"
+
 ```python
+class CountFromBy(object):
+    """docstring for CountFromBy"""
+    def __init__(self, v: int = 0, s: int=1) -> None:
+        super(CountFromBy, self).__init__()
+        self.val = v
+        self.step = s
+
+    def increase(self) -> None:
+        self.val += self.step
+
+    def __repr__(self) -> str:
+        return str(self.val)
+
 class FibIterator():
 	"""docstring for FibIterator"""
 	ins_count = 0;
@@ -493,11 +556,22 @@ for x in fibIter:
 	print(x, end=" ")  # 0 1 1 2 3 5 8
 ```
 
-* __init__(self, para)，按照约定，这个是类中第一个定义的方法，同时也是对象创建后第一个执行的方法，和其他语言的构造方法不同，执行__init__(self, para)时，对象已经创建完成了。
-* 创建一个对象时，需要把__init__(self, para)需要的参数para传入
+
+
+#### Class Method
+
+* `__init__(self, para)`，按照约定，这个是类中第一个定义的方法，同时也是对象创建后第一个执行的方法，和其他语言的构造方法不同，执行`__init__(self, para)`时，对象已经创建完成了。一般通过这个方法来初始化对象中的属性值，否则在其他方法中使用对象的属性值时，该属性还没有被初始化。
+
+* 创建一个对象时，需要把`__init__(self, para)`需要的参数para传入
+
 * 每一个类的成员方法的第一个参数都是对象的引用，self并不是python的保留字，只是一种约定的习惯，在方法定义的时候需要给出，但在调用时，python会默认传入对象的引用给第一个参数
-* 迭代器：定义了__iter__()方法的类，__iter__()方法返回定义了__next__()的类对象，可以是类自身对象也可以是其他任何迭代器对象，如果一个类中没有__next__()方法，则会报类型错误
-* for 会自动调用iter()会执行__iter__()方法返回一个迭代器，然后循环调用next()方法，执行对象的__next__()
+
+* `__repr__(self)` specify how your objects are represented by the interpreter.
+
+* 迭代器：定义了`__iter__()`方法的类，`__iter__()`方法返回定义了`__next__()`的类对象，可以是类自身对象也可以是其他任何迭代器对象，如果一个类中没有`__next__()`方法，则会报类型错误
+
+* for 会自动调用iter()会执行`__iter__()`方法返回一个迭代器，然后循环调用`next()`方法，执行对象的`__next__()`
+
 * 改变对象的属性值，不会影响类的属性值
   ```python
   fibIter = FibIterator(10)
@@ -509,7 +583,10 @@ for x in fibIter:
   print(fibIter.ins_count)             # 6 use class's attribue
   print(fibIt.ins_count)               # fibIt's own ins_count override class's ins_count, so still 3
   ```
+
+
 ###断言
+
 `assert 1 > 2, "1 bigger than 2 when in a game"` 
 
 output:
@@ -568,7 +645,23 @@ def database_work():
     conn.close()
 ```
 
+#### SQL Statement
 
+* 查询一个表有多少行 `select count(*) from req_log;`
+
+* 查询都有哪些浏览器 `select distinct browser from req_log;`
+
+* 查询哪个浏览器使用的最多
+
+  ```sql
+  select  browser, count(browser) as 'count' 
+  from req_log
+  group by browser
+  order by count desc
+  limit 1;
+  ```
+
+  ​
 
 ### Standard Library
 
@@ -622,6 +715,8 @@ Flask comes with a built-in object called request that provides easy access to p
 Flask can associate more than one URL with a given function, which can reduce the need for redirections.
 
 由于浏览器会自动解析带有`< >`标签的数据，因此如果要显示的数据中有tag标签时，需要将内容进行转义。Flask中提供了`escape()`函数将传入的字符串进行转义，escape返回的时一个Markup对象
+
+Flask的`app.config` 是一个标准的Python字典，调用者可以将任何自己需要在webapp范围使用的配置存储在这个变量中。
 
 A simple web app：
 

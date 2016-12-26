@@ -2,7 +2,10 @@
 # -*- coding:utf-8 -*-
 
 from flask import Flask, render_template, request, redirect, escape
+
 import sqlite3
+
+from DBcm import UseDatabase
 
 app = Flask(__name__)
 
@@ -13,6 +16,7 @@ LOG_TABLE_NAME = 'req_log'
 LOG_TYPE_TXT = 'TXT'
 LOG_TYPE_DB = 'SQL'
 
+app.config['dbconfig'] = {'dbname':DB_FILE,}
 
 @app.route('/')
 def home() ->'302':
@@ -41,6 +45,20 @@ def show_log():
             for item in line.split('|'):
                 contents[-1].append(escape(item))
     titles = ('Form Data', 'Remote Addr', 'User Agent')
+    return render_template('reqlog.html',
+                            the_title = 'View Logs',
+                            the_row_titles=titles,
+                            the_data=contents,)
+
+@app.route('/dblog')
+def show_db_log():
+    contents = []
+    with UseDatabase(app.config['dbconfig']) as cursor:
+        _sql = "select year, month, day, address, browser from "  + LOG_TABLE_NAME
+        cursor.execute(_sql)
+        contents = cursor.fetchall()
+
+    titles = ('Year', 'Month', 'Day', 'Remote Addr', 'User Agent')
     return render_template('reqlog.html',
                             the_title = 'View Logs',
                             the_row_titles=titles,
@@ -99,15 +117,13 @@ def init_database():
     conn.close()
 
 def add_log_db(year, month, day, address, browser):
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    _sql = "insert into "  + LOG_TABLE_NAME + " (year, month, day, address, browser) values "
-    values = "(" + year + "," + month + "," + day + ", '" + str(address) + "','"+ browser +"')"         
-    print(_sql+values)
-    cursor.execute(_sql+values)
-    conn.commit()
-    cursor.close()
-    conn.close()
+    with UseDatabase(app.config['dbconfig']) as cursor:
+        _sql = "insert into "  + LOG_TABLE_NAME + " (year, month, day, address, browser) values "
+        values = "(" + year + "," + month + "," + day + ", '" + str(address) + "','"+ browser +"')"         
+        print(_sql+values)
+        cursor.execute(_sql+values)
+    
+
 
 if __name__ == '__main__':
     init_database()
