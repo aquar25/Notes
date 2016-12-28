@@ -142,7 +142,48 @@ class CountFromBy(object):
 
     def __repr__(self) -> str:
         return str(self.val)
-        
+
+
+def outter_fun():
+    def inner_print():
+        print('xxx')
+
+    print('return inner fun:')
+    return inner_print()
+
+def show_fun(*args):
+    for arg in args:
+        print(arg)
+
+def show_dict(**kwargs):
+    for k, v in kwargs.items():
+        print(k, v, sep='->', end=' ')  
+
+def show_any_args(*args, **kwargs):
+    if args:
+        for arg in args:
+            print(arg)
+    print()
+    if kwargs:
+        for k, v in kwargs.items():
+            print(k, v, sep='->', end=' ')
+
+
+import functools import wraps
+
+def decorator_name(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        # 1. Code to execute before calling the decorated function.
+
+        # 2. Call the decorated function as required, returning its results if needed.
+        return func(*args, **kwargs)
+        # 3. Code to execute Instead of calling the decorated function.
+
+    return wrapper
 
 if __name__ == '__main__':
-    database_work()
+    show_any_args(a=10, b=20, c=60)
+    show_any_args(1, 2, 3)
+    show_any_args(1, 2, 3, a=10, b=20)
+    

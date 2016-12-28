@@ -1,11 +1,12 @@
 #!/usr/bin/env python
 # -*- coding:utf-8 -*-
 
-from flask import Flask, render_template, request, redirect, escape
+from flask import Flask, render_template, request, redirect, escape, session
 
 import sqlite3
 
 from DBcm import UseDatabase
+from checker import check_logged_in
 
 app = Flask(__name__)
 
@@ -18,10 +19,24 @@ LOG_TYPE_DB = 'SQL'
 
 app.config['dbconfig'] = {'dbname':DB_FILE,}
 
+app.secret_key = 'xxxxooooo'
+
 @app.route('/')
 def home() ->'302':
     # redirect to the future page
     return redirect('/future')
+
+@app.route('/login')
+def do_login()-> str:
+    session['logged_in'] = True
+    return 'You are now logged in.'
+
+@app.route('/logout')
+def do_logout() -> str:
+    # this is trick that pop out the key other than set the key to fasle
+    # this coule avoid the KeyError when there's not the key in the dict.
+    session.pop('logged_in')
+    return 'You are now logged out.'
 
 @app.route('/f')
 @app.route('/future') # GET method by default
@@ -37,6 +52,7 @@ def calc_page() ->'html':
     return render_template('result.html', the_title='Your Future is here', result=result)
 
 @app.route('/reqlog')
+@check_logged_in
 def show_log():
     contents = []
     with open(LOG_FILE) as logfile:
@@ -51,6 +67,7 @@ def show_log():
                             the_data=contents,)
 
 @app.route('/dblog')
+@check_logged_in
 def show_db_log():
     contents = []
     with UseDatabase(app.config['dbconfig']) as cursor:

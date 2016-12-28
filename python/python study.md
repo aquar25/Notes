@@ -203,7 +203,12 @@ Python's *for* loop can be used to iterate over a dictionary. On each iteration,
   mydict['date'] = 2010 # we dont need to check the 'date' is in the dict now
   ```
 
-  ​
+* 如果直接访问一个字典的key，如果字典中还没有添加这个key，会出现KeyError。因此当一个key对应的值为boolean类型时，可以通过判断这个key是否在字典中来判断是否为true，如果需要将key值设置为false，则通过调用pop(key)方法来将key弹出字典中，使用`key in dict` 的方式来判断
+
+* ​
+
+
+
 
 ###集合
 
@@ -508,7 +513,108 @@ print(x, end=" ")  # 0 1 1 2 3 5 8   end=" "，表示每次输出以空格结束
 
 A function decorator adjusts the behavior of an existing function without you having to change that function's code. Although decorators can also be applied to classes as well as functions, they are mainly applied to functions, which results in most Python programmers referring to them as function decorator.
 
+通过装饰器，可以将多个函数中公共的处理逻辑提取出来，这样每个被装饰的函数只需要关心自己特有的逻辑处理，例如判断用户登录操作，在多个请求处理函数中，都是共用的，此时就可以通过装饰器来处理。通过装饰器还可以对已有的函数增加行为，而不用修改已有的函数。
+
+* Decorator is a function
+* Decorator takes the decorated function as an argument
+* Decorator returns a new function, and invoke the decorated function.
+* Decorator maintains the decorated function's signature, the returned function take the same number and type of arguments as expected by the decorated function.
+* import `functools` module's `wraps()` function which is also a decorator.
+
+
+
 For example, the route decorator in Flask arranges for the web server to call the function when a request for the URL arrives at the server. The route decorator then waits for any output produced by the decorator function before returning the output to the server, which then returns it to the waiting web browser.
+
+当一个函数作为参数传入另一个函数时，接收函数内部可以调用作为参数的函数
+
+当在一个函数内部定义一个新函数时，只能在外部函数的suite范围内调用内部定义的函数
+
+```python
+def outter_fun():
+    def inner_print():
+        print('xxx')
+
+    print('call inner fun:')
+    inner_print()
+```
+
+#### 闭包
+
+从一个函数return出另一个内部函数
+
+```python
+def outter_fun():
+    def inner_print():
+        print('xxx')
+
+    print('return inner fun:')
+    return inner_print()
+```
+
+使用`*`来定义接收任意个数参数的函数，例如`myfun(*args)`其中，`*`代表任意个数参数，args是一个tuple。其中args的数据类型可以为不同的。如果将一个list作为参数传递给一个函数，默认这个函数只接受了一个参数，可以通过在调用这个函数时，将list参数前增加`*`从而将list的每一个元素作为参数
+
+```python
+def show_fun(*args):
+    for arg in args:
+        print(arg)   
+        
+show_fun(1, 'one', 2, 'two')
+# define a list 
+args = [1, 'one', 2, 'two']    
+show_fun(*args)
+```
+
+使用`**`来定义接收任意个数keyword的参数。`**`可以看作是将一个字典扩展为keys和values，通常使用`**kwargs`作为参数名称。通过在一个字典参数前增加`**`使得参数被当作多个参数传入函数
+
+```python
+def show_dict(**kwargs):
+    for k, v in kwargs.items():
+        print(k, v, sep='->', end=' ')
+        
+show_dict(a=10, b=20, c=60)
+kwargs = {'a':10, 'b':20, 'c':60}
+show_dict(**kwargs)
+```
+
+接收任意个数和任意类型的函数参数
+
+```python
+def show_any_args(*args, **kwargs):
+    if args:
+        for arg in args:
+            print(arg)
+    print()
+    if kwargs:
+        for k, v in kwargs.items():
+            print(k, v, sep='->', end=' ')
+
+show_any_args(a=10, b=20, c=60)
+show_any_args(1, 2, 3)
+show_any_args(1, 2, 3, a=10, b=20)
+```
+
+
+
+##### A decorator template code
+
+```python
+import functools import wraps
+
+def decorator_name(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        # 1. Code to execute before calling the decorated function.
+
+        # 2. Call the decorated function as required, returning its results if needed.
+        return func(*args, **kwargs)
+        # 3. Code to execute Instead of calling the decorated function.
+
+    return wrapper
+```
+
+
+
+
 
 ###类
 
@@ -705,6 +811,18 @@ pprint.pprint(tvs)
 Pypi is [here](http://pypi.python.org)
 
 ### Flask
+
+#### Web
+
+Http  is stateless. Every web request is independent of what came before it, as well as what comes after. Http协议要求网络为无状态主要考虑性能问题。一个web服务器处理的工作可以最小化，这样当有大量的请求时，可以通过扩大服务器的规模来处理大量的请求。如果服务器要维护一系列请求之间的联系的话，会给服务器带来很大的资源消耗，不便于在多个服务器之间分散处理请求。Web服务器一般都被设计为可以快速应答，并快速忘记上次请求的机制，因为它不记录请求之间的状态。
+
+不要将Webapp的状态保存在全局变量中，例如用户的登录信息，因为服务器可能在任何时候重新启动了webapp，导致之前保存的全局变量值被清空。
+
+Session可以看作在无状态web之上的一层，通过将用户的认证信息存储在浏览器内的cookie中，并在服务端保存一份和这个cookie关联的session id。
+
+Flask中提供了一个全局字典变量`session`，可以保存webapp的一些状态。Flask ensures that any data stored in session exists for the entire time your webapp runs (no matter how many times your web server loads and reloads your webapp code). Additionally, any data stored in session is keyed by a unique browser cookie, which ensures your session data is kept away from that of every other user of your webapp. From the webapp's perspective, it's as if there are multiple values of user in the session dictionary(keyed by cookie). From each browser's perspective, it's as if there is only ever one value of user (the one associated with their individual, unique cookie).
+
+通过设置app.secret_key，Flask可以使用这个key字符串对发送到浏览器之前的cookie进行加密
 
 Template engines let programmers apply the object-oriented notions of inheritance and reuse to the production of textual data, such as web pages. The template engine shipped with Flask is called Jinja2.
 
