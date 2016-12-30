@@ -2,6 +2,9 @@
 # -*- coding:utf-8 -*-
 
 from flask import Flask, render_template, request, redirect, escape, session
+from flask import copy_current_request_context
+from threading import Thread
+from time import sleep
 
 import sqlite3
 
@@ -48,8 +51,21 @@ def calc_page() ->'html':
     month = int(request.form['month'])
     day = int(request.form['day'])
     result = get_constellation(month, day)
+
+    # thread function must be defined in the caller
+    @copy_current_request_context
+    def log_req(req:'flask_request', log_type:str=LOG_TYPE_TXT) -> None:
+        sleep(10)
+        print('start to log request')
+        if log_type == LOG_TYPE_TXT:
+            with open(LOG_FILE, 'a') as logfile:
+                print(req.form, req.remote_addr, req.user_agent, file=logfile, sep='|')
+        else:
+            add_log_db(req.form['year'], req.form['month'], req.form['day'], req.remote_addr, req.user_agent.browser)
+
     try:
-        log_req(request, LOG_TYPE_DB)
+        t = Thread(target=log_req, args=(request, LOG_TYPE_DB))
+        t.start()
     except Exception as e:
         print("log request errors:", str(e))
     
@@ -76,7 +92,7 @@ def show_db_log():
     try:
         contents = []
         with UseDatabase(app.config['dbconfig']) as cursor:
-            _sql = "select years, month, day, address, browser from "  + LOG_TABLE_NAME
+            _sql = "select year, month, day, address, browser from "  + LOG_TABLE_NAME
             cursor.execute(_sql)
             contents = cursor.fetchall()
 

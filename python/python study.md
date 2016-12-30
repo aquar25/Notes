@@ -753,6 +753,12 @@ def test_world_not_work():
         print("Some error", str(e)) #Some error The world has been corrupt....
 ```
 
+### 多线程
+
+1.  `from threading import Thread`
+2. Create a `Thread` object, assigning the name of the function you want the thread to execute to named argument called `target`, and providing any arguments as a tuple to another named argument called args.
+3. Call the object's `start()` to run the function in the thread.
+
 
 
 ###迭代器
@@ -891,6 +897,38 @@ Flask can associate more than one URL with a given function, which can reduce th
 由于浏览器会自动解析带有`< >`标签的数据，因此如果要显示的数据中有tag标签时，需要将内容进行转义。Flask中提供了`escape()`函数将传入的字符串进行转义，escape返回的时一个Markup对象
 
 Flask的`app.config` 是一个标准的Python字典，调用者可以将任何自己需要在webapp范围使用的配置存储在这个变量中。
+
+不能在Flask的响应处理函数中，将请求对象作为另一个函数参数放在单独一个线程中并行执行，因为在响应函数处理完成后，请求对象已经被释放了，此时多线程函数中还在处理request对象，导致异常。Flask提供了`@copy_current_request_context`装饰器，来保证http请求对象可以在另一个线程中被使用。线程处理函数必须定义在调用这个函数的内部。
+
+```python
+@app.route('/calc', methods=['POST']) # supports only the POST method
+def calc_page() ->'html':
+    month = int(request.form['month'])
+    day = int(request.form['day'])
+    result = get_constellation(month, day)
+
+    # thread function must be defined in the caller
+    @copy_current_request_context
+    def log_req(req:'flask_request', log_type:str=LOG_TYPE_TXT) -> None:
+        sleep(10)
+        print('start to log request')
+        if log_type == LOG_TYPE_TXT:
+            with open(LOG_FILE, 'a') as logfile:
+                print(req.form, req.remote_addr, req.user_agent, file=logfile, sep='|')
+        else:
+            add_log_db(req.form['year'], req.form['month'], req.form['day'], req.remote_addr, req.user_agent.browser)
+
+    try:
+        t = Thread(target=log_req, args=(request, LOG_TYPE_DB))
+        t.start()
+    except Exception as e:
+        print("log request errors:", str(e))
+    
+    return render_template('result.html', the_title='Your Future is here', result=result)
+
+```
+
+
 
 A simple web app：
 
