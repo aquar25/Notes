@@ -169,7 +169,7 @@ def show_any_args(*args, **kwargs):
             print(k, v, sep='->', end=' ')
 
 
-import functools import wraps
+from functools import wraps
 
 def decorator_name(func):
     @wraps(func)
@@ -182,8 +182,31 @@ def decorator_name(func):
 
     return wrapper
 
+class WorldNotWork(Exception):
+    pass
+
+def test_world_not_work():
+    try:
+        raise WorldNotWork('The world has been corrupt....') 
+    except WorldNotWork as e:
+        print("Some error", str(e)) #Some error The world has been corrupt....
+           
+
+def read_file():
+    try:
+        with open('xxx.txt') as fd:
+            file_data = fd.read()
+        print(file_data)
+    except FileNotFoundError:
+        print('file is missing.')
+    except PermissionError:
+        print('not allowed.')
+    except Exception as err:
+        print('some error occurred:', str(err))
+
 if __name__ == '__main__':
-    show_any_args(a=10, b=20, c=60)
-    show_any_args(1, 2, 3)
-    show_any_args(1, 2, 3, a=10, b=20)
+    test_world_not_work()
+
+    
+
     

@@ -295,7 +295,7 @@ Context management protocol dictates that any class you create must define at le
 
 The interpreter invokes the object's `__enter__` method before the with statement's suite starts. The  `__enter__` can return a value to the with statement. As the with suite ends, the interpreter always invokes the object's `__exit__` method.  As the code in the with statement's suite may fail (and raise an exception), dunder exit has to be ready to handle this if it happens. 
 
- `__exit__`  method accepts another 3 arguments `__exit__(self, exc_type, exc_value, exc_trace)` for handle the exception in the with statement.
+ `__exit__`  method accepts another 3 arguments `__exit__(self, exc_type, exc_value, exc_trace)` for handle the exception in the with statement for your code. If there is some exception in `__enter__`，the `__exit__`function will not be executed.
 
  With statement manages the context with in which its suite runs.
 
@@ -315,6 +315,10 @@ import sqlite3
 #     'tbname':LOG_TABLE_NAME
 #     }
 
+class DataAccessException(Exception):
+    pass
+        
+
 class UseDatabase(object):
     """docstring for UseDatabase"""
     def __init__(self, config: dict)->None:
@@ -322,14 +326,25 @@ class UseDatabase(object):
         self.config = config
 
     def __enter__(self) -> 'cursor':
-        self.conn = sqlite3.connect(self.config['dbname'])
-        self.cursor = self.conn.cursor()
-        return self.cursor
+        try:
+            self.conn = sqlite3.connect(self.config['dbname'])
+            self.cursor = self.conn.cursor()
+            return self.cursor
+        except Exception as e:
+            raise DataAccessException(e)
+        
 
     def __exit__(self, exc_type, exc_value, exc_trace) -> None:
         self.conn.commit()
         self.cursor.close()
         self.conn.close()
+        if exc_type is sqlite3.OperationalError:
+            # 例如在with语句中访问了不存在的列
+            print('some thing error in with')
+            raise DataAccessException('error in exit')
+        elif exc_type:
+            print('unhandled exceptions', str(type(exc_value)))            
+            raise exc_type(exc_value) 
 
 # use it in a with statement
 with UseDatabase(app.config['dbconfig']) as cursor:
@@ -598,7 +613,7 @@ show_any_args(1, 2, 3, a=10, b=20)
 ##### A decorator template code
 
 ```python
-import functools import wraps
+from functools import wraps
 
 def decorator_name(func):
     @wraps(func)
@@ -698,6 +713,47 @@ for x in fibIter:
 output:
 
 `AssertionError: 1 bigger than 2 when in a game`
+
+### Exception
+
+When a runtime error is raised, it can be caught or uncaught: `try` lets you catch a raised error, and `except` lets you do something about it.
+
+```python
+def read_file():
+    try:
+        with open('xxx.txt') as fd:
+            file_data = fd.read()
+        print(file_data)
+    except FileNotFoundError:
+        print('file is missing.')
+    except PermissionError:
+        print('not allowed.')
+    except Exception as err:
+        print('some error occurred:', str(err))
+```
+
+在最后一个`except`中会捕获所有前面没有捕获的异常，不要在任何一个except中直接pass，不做任何处理，这样如果有错误发生也发现不了。
+
+#### exc_info
+
+Python的`sys`模块提供函数`exc_info`返回程序中最近出现的异常信息，以元组返回三个参数分别是异常的类型、异常的值和堆栈调用信息。
+
+#### 自定义异常
+
+自定义异常类继承自Exception类，就可以raise了。
+
+```python
+class WorldNotWork(Exception):
+    pass
+
+def test_world_not_work():
+    try:
+        raise WorldNotWork('The world has been corrupt....') 
+    except WorldNotWork as e:
+        print("Some error", str(e)) #Some error The world has been corrupt....
+```
+
+
 
 ###迭代器
 `itertools.permutations([1, 2, 3], 2) `
@@ -1040,6 +1096,14 @@ codes 300-399 are redirection messages: the sever is informing the client that t
 codes 400-499 are client error messages: the server received a request from the client that it does not understand and can't process.
 
 codes in the 500-599 range are server error message: the server received a request from the client, but the server failed while trying to process it.
+
+### 其他资源
+
+* data science: http://pydata.org
+* web library `requests` is regarded as a master class in how to do things the Python way.
+* PyLint, python's code analysis tool http://www.pylint.org
+* Kivy, is a Python library allows for the development of applications that use multi-touch interfaces. http://kivy.org
+* *Fluent Python* a book which will make you a better Python programmer.
 
 ### 开发环境
 

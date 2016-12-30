@@ -5,7 +5,7 @@ from flask import Flask, render_template, request, redirect, escape, session
 
 import sqlite3
 
-from DBcm import UseDatabase
+from DBcm import UseDatabase, DataAccessException
 from checker import check_logged_in
 
 app = Flask(__name__)
@@ -48,7 +48,11 @@ def calc_page() ->'html':
     month = int(request.form['month'])
     day = int(request.form['day'])
     result = get_constellation(month, day)
-    log_req(request, LOG_TYPE_DB)
+    try:
+        log_req(request, LOG_TYPE_DB)
+    except Exception as e:
+        print("log request errors:", str(e))
+    
     return render_template('result.html', the_title='Your Future is here', result=result)
 
 @app.route('/reqlog')
@@ -69,17 +73,25 @@ def show_log():
 @app.route('/dblog')
 @check_logged_in
 def show_db_log():
-    contents = []
-    with UseDatabase(app.config['dbconfig']) as cursor:
-        _sql = "select year, month, day, address, browser from "  + LOG_TABLE_NAME
-        cursor.execute(_sql)
-        contents = cursor.fetchall()
+    try:
+        contents = []
+        with UseDatabase(app.config['dbconfig']) as cursor:
+            _sql = "select years, month, day, address, browser from "  + LOG_TABLE_NAME
+            cursor.execute(_sql)
+            contents = cursor.fetchall()
 
-    titles = ('Year', 'Month', 'Day', 'Remote Addr', 'User Agent')
-    return render_template('reqlog.html',
-                            the_title = 'View Logs',
-                            the_row_titles=titles,
-                            the_data=contents,)
+        titles = ('Year', 'Month', 'Day', 'Remote Addr', 'User Agent')
+        return render_template('reqlog.html',
+                                the_title = 'View Logs',
+                                the_row_titles=titles,
+                                the_data=contents,)
+    # catch the exception with custom exception
+    except DataAccessException as e:
+        print('data base error: ', str(e))
+    except Exception as err:
+        print('Some error happen: ', str(err))
+    return 'Error'
+    
 
 def log_req(req:'flask_request', log_type:str=LOG_TYPE_TXT) -> None:
     if log_type == LOG_TYPE_TXT:
