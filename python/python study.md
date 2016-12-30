@@ -22,6 +22,7 @@ Everything in python is an object, so anything can be assigned to a variable.
 
 * `__name__` stand for  the current module. Python use "double underscore, name, double underscore" phrase to name some special use. "dunder name" is shorthand for  "double underscore, name, double underscore". "wonder" is shorthand for "one underscore"
 * `__main__` if a Python code is executed directly by Python, the active namespace is `__main__`. However, if the code is imported as a module,  the `__name__`is the name of imported module.
+* (...)  {...} [...] 中间内容可以换行
 
 #### PEP
 
@@ -167,11 +168,17 @@ a_list = [x**2 for x in range(10) if x % 2==0]
 Tuple is an ordered immutable collection of objects.
 
 元组是不可变的列表，速度比列表快，可以用作字典的key。Perhaps you have a large constant list and you're worried about performance.
-可以使用元组作为函数的返回值，因为元组可以进行元素的一一赋值，如  
-(a, b, c) = range(3)
-a: 0
-b: 1
-c: 2
+可以使用元组作为函数的返回值，因为元组可以进行元素的一一赋值，
+
+```python
+# text = 'key,value,keys' # ValueError: too many values to unpack
+text = 'key,value'
+k, v = text.split(',')
+(a, b, c) = range(3)  #a: 0  b: 1  c: 2
+
+```
+
+ 
 
 * every tuple needs to include at least one comma between the parentheses. 当一个元组中只有一个元素是，需要在这个元素后面加上`,` 否则编译器会认为这个支持一个()包围起来的普通数据。`t = ('value')`, the type of `t` is `str`. 正确的写法应该是`t=('value',)` 当元组作为函数的参数和返回值时，也要保证这一点。
 
@@ -262,6 +269,18 @@ python中可以使用`""`或`''`来标识字符串，一般如果一个字符串
 * rstrip() 字符串方法移除每一行尾部的空白
 * lstrip() 方法移除头部的空白
 * strip() 方法头尾都移除
+* title()首字母大写
+
+
+
+
+24小时时间转为12小时制
+
+```python
+def convert2ampm(time24: str) -> str:
+    return datetime.strptime(time24, '%H:%M').strftime('%I:%M %p')
+```
+
 
 
 
@@ -519,10 +538,62 @@ for x in fib(10):  # for 会对fib()这个生成器循环执行执行next()
 print(x, end=" ")  # 0 1 1 2 3 5 8   end=" "，表示每次输出以空格结束，不是换行
 ```
 
-#####生成器表达式
+#### 列表推导式/解析式(Comprehension)
+
+阅读理解列表表达式的推荐做法是先从里面的for循环开始，向右查看是否有if条件，然后将推导式开始的那个表达式映射到每一个匹配的元素上去。
+
+1. Python解释器对生成器表达式进行过优化，因此效率要比for语句更快
+2. 列表推导式可以直接赋值给一个变量
+
+```python
+options = ['NAME', 'VALUE', 'WORD', 'PYTHON', 'GOOGLE']
+values = []
+for opt in options:
+    values.append(opt.title())
+```
+列表推导式表达式的转换步骤：
+
+1. 先创建一个空容器`vals = []`
+2. for循环迭代原始数据`vals = [for opt in options]`
+3. if来对每个数据过滤(可选)
+4. 对每一个元素进行操作`vals = [opt.title() for opt in options]`
+
+同理，python还支持dict comprehension以及set comprehension，但是tuple不支持。字典的例子，其中只是把`[]`换成了`{}`. 当需要if条件过滤时，只需要把if条件放到for循环的后面
+
+```python
+options = {1:'NAME', 2:'VALUE', 3:'WORD', 4:'PYTHON', 5:'GOOGLE'}
+    values = {}
+    for k, v in options.items():
+        if k > 2:
+            values[k-1]= v.title()
+    print(values)
+
+    vals = { k-1 : v.title() for k, v in options.items() if k > 2}
+    print(vals)
+```
+
+
+
+####生成器表达式(Generator Expression)
+
+1. ​
+
 `gen_exp = (a for a in range(15) if a % 3 == 0) #0 3 6 9 12`
 生成器表达式使用()来定义，返回的也是一个迭代器，可以使用for遍历,next(gen_exp)或者调用tuple/set/list来得到相应的容器  
 `print(tuple(gen_exp)) # (0, 3, 6, 9, 12)`
+
+```python
+options = ['NAME', 'VALUE', 'WORD', 'PYTHON', 'GOOGLE']
+    values = []
+    for opt in options:
+        values.append(opt.title())
+```
+
+
+
+1. ​
+
+
 
 ### Decorator
 

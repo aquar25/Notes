@@ -204,8 +204,27 @@ def read_file():
     except Exception as err:
         print('some error occurred:', str(err))
 
+def test_return_list():
+    # text = 'key,value,keys' # ValueError: too many values to unpack
+    text = 'key,value'
+    k, v = text.split(',')
+    print(k,v)
+
+from datetime import datetime
+
+def convert2ampm(time24: str) -> str:
+    return datetime.strptime(time24, '%H:%M').strftime('%I:%M %p')
+
 if __name__ == '__main__':
-    test_world_not_work()
+    options = {1:'NAME', 2:'VALUE', 3:'WORD', 4:'PYTHON', 5:'GOOGLE'}
+    values = {}
+    for k, v in options.items():
+        if k > 2:
+            values[k-1]= v.title()
+    print(values)
+
+    vals = { k-1 : v.title() for k, v in options.items() if k > 2}
+    print(vals)
 
     
 
