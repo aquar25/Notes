@@ -227,8 +227,7 @@ def gen_from_urls(urls:tuple)->tuple:
     for resp in (requests.get('http://'+url) for url in urls):
         yield len(resp.content), resp.status_code, resp.url
 
-
-if __name__ == '__main__':
+def test_generator():
     fts = {'10:00':'Hongkong', '08:00':'NewYork', '16:00':'Hongkong', '12:00':'Taipei',}
     
     for v in gen_dest(fts):
@@ -260,8 +259,21 @@ if __name__ == '__main__':
     
     urls = ('www.baidu.com', 'www.douban.com', 'www.qq.com')
     # use dict comprehension to iterator the generator function
-    # the _, underscore tells the code to ignore the second value
+    # the `_`underscore is Python's defualt variable name, tells the code to ignore the second value
     urls_res = { url : size for size, _, url in gen_from_urls(urls) }
     print(urls_res)
+
+if __name__ == '__main__':
+    value = 3.14
+    tag = 'is for circle'
+    msg = 'Value %2.2f %s' % (value, tag)
+    print(msg)
+    msg = 'Value {} which {}'.format(value, tag)
+    print(msg)
+
+    fts = {'10:00':'Hongkong', '08:00':'NewYork', '16:00':'Hongkong', '12:00':'Taipei',}
+    for k in sorted(fts, key=fts.get, reverse=True):
+        print(k, '->', fts[k])
+
 
     

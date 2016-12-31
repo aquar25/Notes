@@ -281,6 +281,20 @@ def convert2ampm(time24: str) -> str:
     return datetime.strptime(time24, '%H:%M').strftime('%I:%M %p')
 ```
 
+#### 格式化字符串
+
+1. 古典方法 使用`%`
+2. 使用字符串类的format()方法，PEP3101 鼓励使用这个方法
+
+```python
+    value = 3.14
+    tag = 'is for circle'
+    msg = 'Value %2.2f %s' % (value, tag)
+    print(msg)
+    msg = 'Value {} which {}'.format(value, tag)
+    print(msg)
+```
+
 
 
 
@@ -847,6 +861,13 @@ for x in fibIter:
   ```
 
 
+编写类用到的装饰器：
+
+* `@staticmethod` 创建一个类的静态方法，这个方法的第一个参数不是`self`
+* `@classmethod` 创建一个类方法，这个方法的第一个参数不是`self`，而是一个类`cls`
+* `@property`将一个方法当作一个属性来使用
+* `__slots__`可以改进类创建对象的内存使用效率
+
 ###断言
 
 `assert 1 > 2, "1 bigger than 2 when in a game"` 
@@ -901,6 +922,12 @@ def test_world_not_work():
 3.  Call the object's `start()` to run the function in the thread.
 
 
+其他并行方法
+
+* multiprocessing, 创建多个python进程
+* asyncio, 通过async和await来使用协程， async可以用在for，with和def的前面，await几乎可以用其他任何代码前面
+* concurrent.futures, 批量并行执行多个任务
+
 
 ###迭代器
 `itertools.permutations([1, 2, 3], 2) `
@@ -919,6 +946,20 @@ key_function(each item)的结果和另一个包含着所有共享这个key 结�
   `eval('["*"] * 5') # ['*', '*', '*', '*', '*']`
   `eval("pow(5, 2)") # 25`
 
+
+### 测试
+
+* `doctest` lets you embed your tests in your module's docstrings
+* `unittest`python's unit test 
+* `pytest`
+
+### 调试
+
+在Python使用`pdb`进行程序调试，python安装后就可以了。
+
+Linux:`$python3 -m pdb myprog.py`
+
+Windows:`:>py -3 -m myprog.py` 
 
 ### Database
 
@@ -974,6 +1015,11 @@ def database_work():
 
 ### Standard Library
 
+* Python 3 Module of the Week https://pymotw.com/3/ PyMOTW-3 is a series of articles written by [Doug Hellmann](http://doughellmann.com/) to demonstrate how to use the modules of the [Python](http://www.python.org/) 3 standard library.
+* collections:  `OrderedDict`  `Counter` `ChainMap`
+* itertools: `product` `permutations` `combinations`
+* functools: `partial`
+
 ```python
 #!/usr/bin/env python
 # -*- coding:utf-8 -*-
@@ -1007,7 +1053,24 @@ tvs['hoc'] = hoc
 pprint.pprint(tvs)
 ```
 
-标准库中的`pprint()`方法可以将任何数据结构以更适合阅读的格式打印出来，例如`pprint(dict)`
+* 标准库中的`pprint()`方法可以将任何数据结构以更适合阅读的格式打印出来，例如`pprint(dict)`
+
+* `sorted()`可以对内建的任何数据结构进行排序，例如对字典中按值进行排序
+
+  ```python
+  fts = {'10:00':'Hongkong', '08:00':'NewYork', '16:00':'Hongkong', '12:00':'Taipei',}
+  for k in sorted(fts, key=fts.get, reverse=True):
+      print(k, '->', fts[k])
+     
+  """ output:
+  12:00 -> Taipei
+  08:00 -> NewYork
+  10:00 -> Hongkong
+  16:00 -> Hongkong
+  """
+  ```
+
+  ​
 
 #### Other Library
 
@@ -1278,11 +1341,23 @@ codes in the 500-599 range are server error message: the server received a reque
 
 ### 其他资源
 
-* data science: http://pydata.org
+* `ipython` is especially popular within the scientific community. `ptpython` is also another prompt python environment.
+* data science: http://pydata.org, `bokeh` `matplotlib/seaborn` `numpy` `scipy` `scikit-learn`for machine learning algorithms
 * web library `requests` is regarded as a master class in how to do things the Python way.
+* `Beautiful Soup` `Scrapy`
 * PyLint, python's code analysis tool http://www.pylint.org
+* `SQL Alchemy`http://www.aqlalchemy.org
 * Kivy, is a Python library allows for the development of applications that use multi-touch interfaces. http://kivy.org
 * *Fluent Python* a book which will make you a better Python programmer.
+* IDE: `eclispe+pydev`  `PyCharm`  `WingWare`
+* `Jupyter Notebook` (iPython Notebook, Jupyter Lab), your code is editable and runnable from within the notebook.Jupyter Notebook（此前被称为 IPython notebook）是一个交互式笔记本，支持运行 40 多种编程语言。http://jupyter.org/
+* PyCon watch PyCon on YouTube
+* PyLadies http://www.pyladies.com
+* Podcast: `Talk Python to Me` http://talkpython.fm  `Podcast.__init__`http://pythonpodcast.com
+* Pycoder's Weekly: http://pycoders.com
+* Python Weekly: http://www.pythonweekly.com
+* Import Python: http://importpython.com/newsletter
+* The zen of Python: in python >>> run  `import this` 
 
 ### 开发环境
 
