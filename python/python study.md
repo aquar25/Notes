@@ -212,7 +212,7 @@ Python's *for* loop can be used to iterate over a dictionary. On each iteration,
 
 * 如果直接访问一个字典的key，如果字典中还没有添加这个key，会出现KeyError。因此当一个key对应的值为boolean类型时，可以通过判断这个key是否在字典中来判断是否为true，如果需要将key值设置为false，则通过调用pop(key)方法来将key弹出字典中，使用`key in dict` 的方式来判断
 
-* ​
+* `dict.values()`获取所有值的列表
 
 
 
@@ -558,7 +558,9 @@ for opt in options:
 3. if来对每个数据过滤(可选)
 4. 对每一个元素进行操作`vals = [opt.title() for opt in options]`
 
-同理，python还支持dict comprehension以及set comprehension，但是tuple不支持。字典的例子，其中只是把`[]`换成了`{}`. 当需要if条件过滤时，只需要把if条件放到for循环的后面
+同理，python还支持dict comprehension以及set comprehension，但是tuple不支持,因为tuple是不可更改的。字典的例子，其中只是把`[]`换成了`{}`. 当需要if条件过滤时，只需要把if条件放到for循环的后面
+
+A listcomp is code surrounded by the square brackets, while a dictcomp is  code surrounded by curly braces with colon delimiters. A setcomp is also code surrounded by curly braces with out colon.
 
 ```python
 options = {1:'NAME', 2:'VALUE', 3:'WORD', 4:'PYTHON', 5:'GOOGLE'}
@@ -572,26 +574,94 @@ options = {1:'NAME', 2:'VALUE', 3:'WORD', 4:'PYTHON', 5:'GOOGLE'}
     print(vals)
 ```
 
+* 列表解析式支持嵌套
 
+  ```python
+  fts = {'10:00':'Hongkong', '08:00':'NewYork', '16:00':'Hongkong', '12:00':'Taipei',}
+      
+  when = {}
+  for dest in set(fts.values()):
+      templist = []
+      for k, v in fts.items():
+          if v == dest:
+              templist.append(k)
+                  
+      when[dest] = templist
+
+  # convert to comprehension
+  when2 = { dest : [k for k, v in fts.items() if v == dest] for dest in set(fts.values()) }
+      
+  ```
+
+  ​
 
 ####生成器表达式(Generator Expression)
-
-1. ​
 
 `gen_exp = (a for a in range(15) if a % 3 == 0) #0 3 6 9 12`
 生成器表达式使用()来定义，返回的也是一个迭代器，可以使用for遍历,next(gen_exp)或者调用tuple/set/list来得到相应的容器  
 `print(tuple(gen_exp)) # (0, 3, 6, 9, 12)`
 
+与列表解析式的差异：列表解析只有在list所有数据都产生后，才能对其进行操作，而生成器则是一次产生一个数据
+
 ```python
-options = ['NAME', 'VALUE', 'WORD', 'PYTHON', 'GOOGLE']
-    values = []
-    for opt in options:
-        values.append(opt.title())
+#list comprehension，for循环只有等待列表解析完成后，
+# 才能执行，如果列表解析中的x*2是个耗时操作就要等很久
+for i in [x*2 for x in [1, 2, 3, 4]]:
+    print(i)
+print('------------------------')
+#generator
+for i in (x*2 for x in [1, 2, 3, 4]):
+    print(i)
 ```
 
+生成器的优点：
 
+1. 一次产生一个数据，对于数据量很大时，不需要等待所有的数据都准备好
+2. 一次产生一个数据，更节省内存的使用，因为只需要一个遍历元素的内存就够了
 
-1. ​
+#### 生成器函数
+
+生成器函数可以被迭代器循环调用，生成器函数使用`yield`关键字返回值，不能用return，因为return表明一个函数执行结束了。在任何使用return的地方都可以使用`yield`,使用这个关键字的函数就可以称为生成器函数，并且可以被任何迭代器调用，包括for循环和各种列表解析器。生成器函数的每一次调用都会执行到`yield`地方暂停，等到下次循环调用该函数时，再接着yield后面执行，直到下一次的`yield`暂停。
+
+the `_` underscore is Python's defualt variable name, tells the code to ignore the value assigned to it.
+
+```python
+def gen_dest(time_table:dict):
+    for k, v in time_table.items():
+        yield v
+        print(k) # this will be execute next time
+        
+fts = {'10:00':'Hongkong', '08:00':'NewYork', '16:00':'Hongkong', '12:00':'Taipei',}
+for v in gen_dest(fts):
+    print(v)
+
+demo = [print(v) for v in gen_dest(fts)]
+    
+"""
+Taipei
+12:00  
+Hongkong
+16:00
+Hongkong
+10:00
+NewYork
+08:00
+"""
+
+import requests
+
+def gen_from_urls(urls:tuple)->tuple:
+    # use generator expression to request each url
+    for resp in (requests.get('http://'+url) for url in urls):
+        yield len(resp.content), resp.status_code, resp.url
+
+urls = ('www.baidu.com', 'www.douban.com', 'www.qq.com')
+    # use dict comprehension to iterator the generator function
+    # the `_`underscore is Python's defualt variable name, tells the code to ignore the second value
+    urls_res = { url : size for size, _, url in gen_from_urls(urls) }
+    print(urls_res)
+```
+
 
 
 
@@ -827,8 +897,8 @@ def test_world_not_work():
 ### 多线程
 
 1.  `from threading import Thread`
-2. Create a `Thread` object, assigning the name of the function you want the thread to execute to named argument called `target`, and providing any arguments as a tuple to another named argument called args.
-3. Call the object's `start()` to run the function in the thread.
+2.  Create a `Thread` object, assigning the name of the function you want the thread to execute to named argument called `target`, and providing any arguments as a tuple to another named argument called args.
+3.  Call the object's `start()` to run the function in the thread.
 
 
 

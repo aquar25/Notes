@@ -215,17 +215,53 @@ from datetime import datetime
 def convert2ampm(time24: str) -> str:
     return datetime.strptime(time24, '%H:%M').strftime('%I:%M %p')
 
-if __name__ == '__main__':
-    options = {1:'NAME', 2:'VALUE', 3:'WORD', 4:'PYTHON', 5:'GOOGLE'}
-    values = {}
-    for k, v in options.items():
-        if k > 2:
-            values[k-1]= v.title()
-    print(values)
+def gen_dest(time_table:dict):
+    for k, v in time_table.items():
+        yield v
+        print(k) # this will be execute next time
 
-    vals = { k-1 : v.title() for k, v in options.items() if k > 2}
-    print(vals)
+import requests
+
+def gen_from_urls(urls:tuple)->tuple:
+    # use generator expression to request each url
+    for resp in (requests.get('http://'+url) for url in urls):
+        yield len(resp.content), resp.status_code, resp.url
+
+
+if __name__ == '__main__':
+    fts = {'10:00':'Hongkong', '08:00':'NewYork', '16:00':'Hongkong', '12:00':'Taipei',}
+    
+    for v in gen_dest(fts):
+        print(v)
+
+    demo = [print(v) for v in gen_dest(fts)]
 
     
+    when = {}
+    for dest in set(fts.values()):
+        templist = []
+        for k, v in fts.items():
+            if v == dest:
+                templist.append(k)
+                
+        when[dest] = templist
+
+    print(when)
+    when2 = { dest : [k for k, v in fts.items() if v == dest] for dest in set(fts.values()) }
+    print(when2)
+
+    #list comprehension
+    for i in [x*2 for x in [1, 2, 3, 4]]:
+        print(i)
+    print('------------------------')
+    #generator
+    for i in (x*2 for x in [1, 2, 3, 4]):
+        print(i)
+    
+    urls = ('www.baidu.com', 'www.douban.com', 'www.qq.com')
+    # use dict comprehension to iterator the generator function
+    # the _, underscore tells the code to ignore the second value
+    urls_res = { url : size for size, _, url in gen_from_urls(urls) }
+    print(urls_res)
 
     
