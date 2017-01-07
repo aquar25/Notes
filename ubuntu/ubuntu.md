@@ -105,7 +105,14 @@ Name[en]=Eclipse
 3. sudo ./Foxit*.run and follow the intallation
 4. intall the application to /opt/foxitsoftware/
 
+#### SublimeText3
+
+* 离线安装插件
+
+  插件目录 /home/edison/.config/sublime-text-3/Packages/，将下载的zip文件内容解压到插件名称的文件中
+
 ####Code::Blocks
+
 * The newest 16.01 is worked on ubuntu 16.04.1. ~~Xenial dumped wxWidgets 2.8, it's not even in repositories. code::blocks won't work on it, unless a version compiled with 3.0 is made available (and Jen's version won't work, it requires more recent libs than those available on hte repositories) or 2.8 is added back.---[link](http://askubuntu.com/questions/761159/codeblocks-in-a-xenial)~~
 1. `sudo add-apt-repository ppa:damien-moore/codeblocks-stable`
 2. `sudo apt-get update`
