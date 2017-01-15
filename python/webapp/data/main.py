@@ -6,12 +6,16 @@ import time
 import datetime
 import requests
 from bs4 import BeautifulSoup
-from dbhelper import SqliteDBHelper, ItemChecker
+from dbhelper import SqliteDBHelper, ItemChecker, DBHelper
 from DataModel import BaseItem
 from DataModel import Movie
 
+import matplotlib.pyplot as plt
+import matplotlib as mlp
+import parser
 
-sqliteHelper = SqliteDBHelper()
+
+sqliteHelper = SqliteDBHelper("douban.db")
 
 def handle_page(idx, checker):
     url1 = "http://movie.douban.com/people/aquar25/collect?start=" \
@@ -76,16 +80,83 @@ def update_data():
         if not handle_page(idx, checker):
             break
 
+def get_movie_data_by_id(subid):
+    """
+    https://developers.douban.com/wiki/?title=api_v2
+    https://api.douban.com/v2/movie/subject/24325861
+    """
+    api_url = "http://api.douban.com/v2/movie/subject/" + subid
+    resp = requests.get(api_url)
+    if resp.status_code == requests.codes.ok:
+        return resp.json()
+
+def visual_data(items):
+    databyWeekDay = {}
+    databyRate = {}    
+    for item in items:
+        rate = item.rate
+        if rate in databyRate:
+            databyRate[rate] += 1
+        else:
+            databyRate[rate] = 1
+
+        watchdate = datetime.datetime.strptime(item.date, '%Y-%m-%d')
+        day = watchdate.weekday()
+        if day in databyWeekDay:
+            databyWeekDay[day].append(item)
+        else:
+            watchlist = []
+            watchlist.append(item)
+            databyWeekDay[day] = watchlist
+    days = []
+    movies = []
+    for k,v in databyWeekDay.items():
+        print('day of week {} waches {} movies, last is {}'.format(k, len(v), v[0].name))
+        days.append(k+1)
+        movies.append(len(v))
+
+    rates = []
+    ratecount = []
+    for k, v in databyRate.items():
+        rates.append(k)
+        ratecount.append(v)
+
+    plt.plot(rates, ratecount)
+    #plt.plot(days, movies)
+    #plt.bar(days, movies)
+    #plt.savefig("hisgram.png")
+    plt.show()
+
+def update_movie_detail():
+    #query a moive list by date range from local database
+    items = sqliteHelper.get_movies_by_date('2016-12-01', '2017-1-30')
+    print('movies count: %d ' % len(items))
+    dbhelper = DBHelper("douban.db")
+
+    for item in items:    
+        print(item.name, item.url.split('/')[-2])    
+        movie = parser.get_movie_from_api(item.url.split('/')[-2])
+        dbhelper.add_movie(movie)
+        time.sleep(1)
+
 
 if __name__ == '__main__':
 
-    update_data()
+    #update_data()
 
     #query a moive list by date range from local database
-    items = sqliteHelper.get_movies_by_date('2016-01-01', '2016-12-30')
-    print(len(items))
+    #items = sqliteHelper.get_movies_by_date('2016-01-01', '2016-12-30')
+    #print(len(items)) #3754368
+    # json_data = get_movie_data_by_id('24325861')
+    # if json_data['subtype']:
+    #     print(json_data['subtype'])
+    #parser.get_movie_from_web('24325861')
+    #update_movie_detail()
+    sqliteHelper.get_movies_watched_duration()
 
     sqliteHelper.close()
+
+    
 
 
 
