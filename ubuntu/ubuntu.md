@@ -305,7 +305,7 @@ Ubuntu16.04默认安装了python2.7.11和python3.5,系统目录下
    `sudo apt-get install libmono-windowsbase4.0-cil`
    `sudo apt-get install libmono-system-web4.0-cil`
    `sudo apt-get install mono-mcs`
-2. 下载最新版本4.4.8.4
+2. 下载最新版本4.4.8.4 `/media/edison/data/code/fiddler/app`
 3. 进入解压目录执行 `mono Fiddler.exe`
 4. `tools-fiddler options-connections-port:8085`
 5. 在浏览器中设置代理为127.0.0.1 端口为8085
@@ -352,4 +352,30 @@ open `chrome://components/`, and check for update of Adobe Flash Player. This op
 #### Typora markdown editor
 
 [website](http://www.typora.io/)
+
+
+
+#### ffmpeg
+
+* 给mp4文件增加字幕
+
+  从youtube上下载的视频文件是mp4文件，但是字幕时单独的srt文件，因此需要将两个文件压缩到一起。
+
+  视频文件和字幕文件压缩到一起，这种是软压缩，不同于直接把字幕加在视频上（hard burn），即视频播放器支持的话就可以控制字幕大小，是否显示字幕等
+
+  `ffmpeg -i infile.mp4 -i infile.srt -c:v copy -c:a copy -c:s mov_text outfile.mp4`
+
+  其中`-c:v copy -c:a copy -c:s mov_text`分别标识视频不变，音频不变，字幕使用文本文件
+
+  如果写成`-c copy -c:s mov_text`，则表示视频和音频保留不变，字幕使用输入的文本
+
+* 视频分割
+
+
+  `ffmpeg -ss 00:00:00 -i input.mp4 -c:v copy -c:a copy -c:s copy -t 00:10:44 output.mp4`
+
+  -ss 标识分割的开始时间
+
+  -t 标识分割的结束时间
+
 
