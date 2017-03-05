@@ -378,4 +378,14 @@ open `chrome://components/`, and check for update of Adobe Flash Player. This op
 
   -t 标识分割的结束时间
 
+#### ProjectLibre
+
+微软的MS Project替代软件
+
+https://sourceforge.net/projects/projectlibre/files/ProjectLibre/
+
+选择需要的版本，在其中下载对应系统的安装包
+
+
+
 

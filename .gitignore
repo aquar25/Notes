@@ -1,4 +1,14 @@
 python/common/commonfun.egg-info
+python/utils/page.html
+
 
 __pycache__
 .cache
+
+cpp/effectivecpp/bin
+cpp/effectivecpp/obj
+
+.tags
+.tags_sorted_by_file
+
+
