@@ -24,6 +24,10 @@
 5. Both the client and server can *send* and *recv* data asynchronously.
 6. Finally, each side can *close* the connection asynchronously and the other side automatically receives an indication of the closure.
 
+#### Select调用
+
+
+
 ###Debugging and Test
 
 ####Advanced Debugging
@@ -94,3 +98,24 @@ FLAG + using_size + ALLOC_MEM_INFO + FLAG
 
 ######Others
 [Memory debugger](https://en.wikipedia.org/wiki/Memory_debugger) on Wikipedia.
+
+#### 时间处理
+
+1. 将系统第一次开机以来的tick数保存在EEPROM中
+2. 每次修改时间时，将最新的绝对时间和tick数保存EEPROM中
+3. 系统时间通过RTC来保证正常运行，每次开机时从RTC中读取最新的时间
+
+* 举例
+
+保存系统绝对时间和第一次开机以来的绝对tick的变量分别为absTime和absTick
+
+系统应用使用的时间为sysTime，同时有一个变量sysTick维护本次开机以来的tick数
+
+sysTime每次开机时从RTC中读出来，而sysTick从开机后就一直每秒增加1.
+
+当用户修改时间时，将sysTime设置为用户设置的时间，同时将它的值保存到RTC中。与此同时，需要将最新的绝对时间也更新保存到EEPROM中，最新的绝对tick数absTick = baseOffsetTick+sysTick.其中baseOffsetTick的值在第一次开机时为0。每次开机初始化时baseOffsetTick = 上次保存的absTick+（当前系统时间减去上次保存时间经过的秒数），因为设置时间时会同时设置RTC中和EEPROM中的时间，因此正常情况下EEPROM中的时间值肯定时小于RTC的，通过将RTC中的系统时间减去EEPROM中的绝对时间，就可以得到上次保存时间到这次开机经过的秒数，从而计算出第一次开机到现在本次开机经过的秒数。当系统中需要唯一的全局绝对Tick数时，就可以通过absTick = baseOffsetTick+sysTick得到。
+
+1. 第一次开机时间为15:00 此时absTime为0,absTick也为0，用户需要设置系统时间为15:00,因此将设置sysTime为15:00并将其更新到RTC中，同时将absTime保存为15:00,absTick为本次开机经过的tick数，即0+sysTick，假设此时tick为200
+2. 在经过1个小时后，即16:00时，用户将时间又修改为14:00，此时sysTime和absTime都为16:00,absTick=0+200+3600=3800s
+3. 用户关机了一个小时，重新开机时，读取EEPROM中的上次保存的absTick和absTime，由于此时保存在RTC中的sysTime经过一个小时变成了15:00,因此计算本次开机时的baseOffsetTick=上次保存的绝对tick数+关机过程中经过的tick数=absTick+（sysTime-absTime）=3800s+3600s = 7400s，因此从第一次开机到此次开机时刻的绝对tick数就为7400s
+4. 当系统需要使用全局绝地tick时，就通过本次开机时的绝对tick+本次开机到现在的系统tick数，absTick = baseOffsetTick+sysTick得到。

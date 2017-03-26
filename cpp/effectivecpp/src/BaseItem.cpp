@@ -6,6 +6,7 @@
 using namespace std;
 
 const float BaseItem::PIE = 3.14;
+const int MAX_ITEM_COUNT = 50;
 
 BaseItem::BaseItem():m_nID(0)
 {
@@ -54,6 +55,7 @@ void BaseItem::SetName(char* val)
 void BaseItem::Print()
 {
     cout<<"id: "<<m_nID<<endl;
+    cout << (&MAX_ITEM_COUNT) << endl;
 }
 
 Game::Game():type(0)

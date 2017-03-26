@@ -3,6 +3,7 @@
 
 const char* const FileName = "BaseItem.h";
 const std::string FileExtName(".h");
+extern const int MAX_ITEM_COUNT;
 
 class UnCopyable
 {

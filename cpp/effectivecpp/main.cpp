@@ -66,7 +66,8 @@ void ManageObjects(int count)
 
 int main()
 {
-
+    char szbuff[MAX_ITEM_COUNT] = {0};
+    cout << "main:" << (&MAX_ITEM_COUNT) << endl;
     char szInfo[50] = {0};
     float fValue = 6.625f;
     int nPresion = 2;
@@ -79,6 +80,7 @@ int main()
     Game gta(cod);
     gta.SetName("gta");
     cod = gta;
+    cod.Print();
     ManageObjects(0);
 
     compare("good", "god");
