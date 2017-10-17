@@ -263,6 +263,21 @@ def test_generator():
     urls_res = { url : size for size, _, url in gen_from_urls(urls) }
     print(urls_res)
 
+import threading
+import asyncio
+
+@asyncio.coroutine
+def hello():
+    print('Hello world! (%s)' % threading.currentThread())
+    yield from asyncio.sleep(3)
+    print('Hello again! (%s)' % threading.currentThread())
+
+def asynDemo():
+    loop = asyncio.get_event_loop()
+    tasks = [hello(), hello()]
+    loop.run_until_complete(asyncio.wait(tasks))
+    loop.close()
+
 if __name__ == '__main__':
     value = 3.14
     tag = 'is for circle'
@@ -275,5 +290,6 @@ if __name__ == '__main__':
     for k in sorted(fts, key=fts.get, reverse=True):
         print(k, '->', fts[k])
 
+    asynDemo()
 
     

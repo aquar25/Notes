@@ -538,18 +538,17 @@ Python 3.4 includes a module called *setuptools* , which can be used to add any 
 生成器是一个特殊的迭代器
 "yield" 暂停一个函数的执行，"next()"从生成器暂停处恢复执行
 
-def fib(max):  # define a generator
 ```python
-x, y = 0, 1
-while x < max:
-	yield x  #执行到这里暂停，返回x的值
-	x, y = y, x+y
+def fib(max):  # define a generator
+	x, y = 0, 1
+	while x < max:
+		yield x  #执行到这里暂停，返回x的值
+		x, y = y, x+y
 ```
 
-
-for x in fib(10):  # for 会对fib()这个生成器循环执行执行next()
 ```python
-print(x, end=" ")  # 0 1 1 2 3 5 8   end=" "，表示每次输出以空格结束，不是换行
+for x in fib(10):  # for 会对fib()这个生成器循环执行执行next()
+	print(x, end=" ")  # 0 1 1 2 3 5 8   end=" "，表示每次输出以空格结束，不是换行
 ```
 
 #### 列表推导式/解析式(Comprehension)

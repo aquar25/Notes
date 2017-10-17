@@ -199,6 +199,18 @@ Your branch is ahead of 'origin/master' by 1 commit.
   (use "git push" to publish your local commits)
 nothing to commit, working directory clean
 ```
+
+* git branch
+
+`git branch`列出本地所有branch  
+`git branch -r`列出远端所有分支  
+`git branch -a`列出本地和远端所有分支  
+`git branch <branchname>`创建一个名为branchname的分支，但是不切换到该分支  
+`git branch -m | -M oldbranch newbranch`重命名分支，如果newbranch名字分支已经存在，则需要使用-M强制重命名，否则，使用-m进行重命名  
+`git branch -d | -D branchname`删除branchname分支  
+`git branch -d -r branchname`删除远程branchname分支
+`git checkout testing`切换到分支testing  
+
 * Git GUI: use command `git gui`. 
   Installation: `sudo apt-get install git-gui`. graphical commit tool, in Tcl/Tk, distributed with Git (usually in git-gui package). The tool is same on windows system.
 
@@ -326,7 +338,7 @@ Ubuntu16.04默认安装了python2.7.11和python3.5,系统目录下
 ```
 server and server port is supplied by the service online, some are free. mostly are are fees. Each supplier will give you a password. The local port is used in your computer. 
 3. start the shadowsocks with `sslocal -c /etc/shadowsocks.json`
-4. set the global network proxy.System setting->Network->Network proxy, set method with manual, and socks host with 127.0.0.1 and port is 10808 as the config file.
+4. set the global network proxy. System setting->Network->Network proxy, set method with manual, and socks host with 127.0.0.1 and port is 10808 as the config file. Leave Http Proxy empty, otherwise the chrome will use it.
    Then when you update component of chrome, it will use this proxy as follow:
 
 ```
@@ -343,6 +355,20 @@ INFO: loading config from /etc/shadowsocks.json
   `http://51.ruyo.net/shadowsocks/`  
   `http://170434.vhost251.cloudvhost.cn/user/index.php` 
   `http://ordshadowsocks.sunnywell.top/user/index.php`
+
+* generate local PAC file
+
+Only the dev version support python3
+`pip install https://github.com/JinnLynn/genpac/archive/master.zip`
+
+Go to any directory such as `/home/xxx/network/` and execute:
+
+`genpac --proxy="SOCKS5 127.0.0.1:1080" --gfwlist-proxy="SOCKS5 127.0.0.1:1080" -o autoproxy.pac --gfwlist-url="https://raw.githubusercontent.com/gfwlist/gfwlist/master/gfwlist.txt"`
+
+* use the pac file global
+1. check proxy address and port in the pac file, the default is SOCKS5 127.0.0.1:1080
+2. System setting->Network->Network proxy, set method with automatic, in the configuration URL input the pac file, here is `/home/xxx/network/autoproxy.pac`
+
 
 ####chrome adobe flash is out of date
 open `chrome://components/`, and check for update of Adobe Flash Player. This operation need a global proxy of system. Because we cant access google's server.
@@ -385,6 +411,9 @@ open `chrome://components/`, and check for update of Adobe Flash Player. This op
 https://sourceforge.net/projects/projectlibre/files/ProjectLibre/
 
 选择需要的版本，在其中下载对应系统的安装包
+
+#### 查看二进制文件
+`hexdump filename | more`
 
 
 

@@ -26,6 +26,84 @@
 
 #### Select调用
 
+#### POSIX Threads
+
+The 2.6 kernel utilizes the new Native POSIX Thread Library, or NPTL (introduced in 2002), which is a higher performance implementation with numerous advantages over the older component.
+
+check the pthread version of current system with : `$getconf GNU_LIBPTHREAD_VERSION`, this will output `NPTL 2.23` on  my ubuntu 16.04.
+
+When a process is forked,  a new process is created with its own globals and stack. When a thread is created, the only new element created is a stack that is unique for the thread. The code and global data section are common between the threads.
+
+![create_a_new_process](/images/create_a_new_process.png)
+
+![create_a_new_thread](/images/create_a_new_thread.png)
+
+A process can create and manage numerous threads. Each thread is identified by a thread identifier that is unique for every thread in a system. Because the data space is shared by threads,  they share more than just user data. Such as file descriptors for open files or sockets are shared too. So we have to handle the resources been access by multiple threads.
+
+The author strongly suggest that using shared data while developing threaded applications.
+
+All pthread API will return 0 for success but a positive value to indicate an error. 
+
+##### Create a thread
+
+```c++
+int pthread_create( pthread_t *thread, pthread_attr_t *attr,
+	void *(*start_routine)(void *), void *arg );
+int pthread_exit( void *retval );
+```
+
+`pthread_create`create a thread with `pthread_t` and a base function. The function `start_routine` represents the top level code that is executed within the thread. The `pthread_t` object mythread represents the new thread. We can use the fourth argument to send a value or a structure containing a variety of elements to the thread. The exit value presented to `pthread_exit` must not be of local scope; otherwise it won't exist after the thread is destroyed.
+
+```c++
+#include <pthread.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <errno.h>
+
+void* EntryFunction(void* arg)
+{
+    printf("Thread ran~\n");
+
+    /* Terminate the thread */
+    pthread_exit(NULL);
+}
+
+int main()
+{
+	printf("start up...\n");
+
+    int ret;
+    pthread_t mythread;
+    
+    ret = pthread_create(&mythread, NULL, EntryFunction, NULL);
+
+    if (ret!=0)
+    {
+		printf("Can't create pthread (%s)\n", strerror(errno));
+		exit(-1);
+    }
+    
+    getchar();
+
+    return 0;
+}
+```
+
+build the demo with a make file
+
+```makefile
+threadapp: thread_demo.o
+	gcc -pthread -lpthread -o threadapp thread_demo.o
+
+thread_demo.o: thread_demo.c
+	gcc -pthread -c -o thread_demo.o thread_demo.c 
+```
+
+
+
+
+
 
 
 ###Debugging and Test
