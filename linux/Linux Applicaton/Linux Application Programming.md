@@ -28,7 +28,7 @@
 
 #### POSIX Threads
 
-The 2.6 kernel utilizes the new Native POSIX Thread Library, or NPTL (introduced in 2002), which is a higher performance implementation with numerous advantages over the older component.
+The 2.6 kernel utilizes the new Native POSIX Thread Library, or NPTL (introduced in 2002), which is a higher performance implementation with numerous advantages over the older component. The numbers of threads in Linux Threads was a compile-time option(1000), whereas NTPL supports a dynamic number of threads. NPTL can support up to 2 billion threads on an IA-32 system.
 
 check the pthread version of current system with : `$getconf GNU_LIBPTHREAD_VERSION`, this will output `NPTL 2.23` on  my ubuntu 16.04.
 
@@ -50,9 +50,16 @@ All pthread API will return 0 for success but a positive value to indicate an er
 int pthread_create( pthread_t *thread, pthread_attr_t *attr,
 	void *(*start_routine)(void *), void *arg );
 int pthread_exit( void *retval );
+// get the handler of current thread.
+pthread_t pthread_self( void );
+int pthread_once(pthread_once_t* once_control, void (*init_routine)(void));
+// one thread terminate another thread
+int pthread_cancel( pthread_t thread );
 ```
 
 `pthread_create`create a thread with `pthread_t` and a base function. The function `start_routine` represents the top level code that is executed within the thread. The `pthread_t` object mythread represents the new thread. We can use the fourth argument to send a value or a structure containing a variety of elements to the thread. The exit value presented to `pthread_exit` must not be of local scope; otherwise it won't exist after the thread is destroyed.
+
+`pthread_once` function will help you to run some code only once, even it is called by different thread creation. This is useful when you want to initialize something for all thread. In the follow demo, we create two threads, and the thread function is called for twice while the `initialize_once_app` function is run only once.
 
 ```c++
 #include <pthread.h>
@@ -60,13 +67,33 @@ int pthread_exit( void *retval );
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
+#include <assert.h>
+
+// init a mutex for pthread_once function
+pthread_once_t my_init_mutex = PTHREAD_ONCE_INIT;
+
+void initialize_once_app(void)
+{
+	printf("work only once\n");
+}
 
 void* EntryFunction(void* arg)
 {
-    printf("Thread ran~\n");
+    printf("Thread %d ran~\n", (int)arg);
+
+    pthread_t id = pthread_self();
+    printf("my id is %x\n", (int)id);
+    int detachid = 2;
+    if (detachid == (int)arg)
+    {
+    	printf("I am thread %d and I must detached bye...", detachid);
+    	pthread_detach(id);
+    }
+
+    pthread_once(&my_init_mutex, initialize_once_app);
 
     /* Terminate the thread */
-    pthread_exit(NULL);
+    pthread_exit(arg);
 }
 
 int main()
@@ -74,15 +101,34 @@ int main()
 	printf("start up...\n");
 
     int ret;
-    pthread_t mythread;
+    pthread_t mythread1;
+    pthread_t mythread2;
+    int arg1 = 1;
+    int arg2 = 2;
     
-    ret = pthread_create(&mythread, NULL, EntryFunction, NULL);
+    ret = pthread_create(&mythread1, NULL, EntryFunction, (void*)arg1);
+    printf("pthread_t is %x\n", (int)mythread1);
+
+    ret = pthread_create(&mythread2, NULL, EntryFunction, (void*)arg2);    
 
     if (ret!=0)
     {
 		printf("Can't create pthread (%s)\n", strerror(errno));
 		exit(-1);
     }
+    int status = 0;
+    // wait for mythread run finished
+    printf("wait for mythread 1 working \n");
+    ret = pthread_join(mythread1, (void**)&status);
+    if (ret!=0)
+    {
+    	printf("Error joining thread (%s)\n", strerror(errno));
+    }
+    else
+    {
+    	printf("Thread status = %d \n", status);
+    }
+    printf("mythread1 finished\n");
     
     getchar();
 
@@ -90,7 +136,7 @@ int main()
 }
 ```
 
-build the demo with a make file
+build the demo with a make file，Note also that you specify the -pthread option, which adds support for multithreading to the application (such as re-entrancy). The option also ensures that certain global system variables (such as errno) are provided on a per-thread basis.
 
 ```makefile
 threadapp: thread_demo.o
@@ -100,11 +146,239 @@ thread_demo.o: thread_demo.c
 	gcc -pthread -c -o thread_demo.o thread_demo.c 
 ```
 
+##### Thread Synchronization
 
+`int pthread_join( pthread_t th, void **thread_return );`
 
+The **creator thread** can wait for the **created thread** to finish using this function. When `pthread_join` is called, the creator thread  suspends until a join is complete. When the join is done the caller receives the joined thread's termination status as the return from `pthread_join` A thread is automatically joinable when using the default attributes of `pthread_create`. If the attribute for the thread is defined as detached, then the thread can’t be joined (because it’s detached from the creating thread). 
 
+`int pthread_detach( pthread_t th );`
 
+The creator or the thread itself can detach itself. When the detached thread exits, all resources are immediately freed.
 
+In the demo, the main thread will wait for the mythread1 finished. The mythread1 will return the arg value is 1 to the main thread.
+
+##### Thread Mutexes
+
+A mutex is a variable that permits threads to implement critical sections. These sections enforce exclusive access to variables by threads, which is left unprotected result in data corruption.互斥锁用来保护一段重要的代码段不被其他线程访问，从而避免一个数据同时被多个线程修改。A critical section is a section of code that can be executed by at most one process at a time. The critical section exists to protect shared resources from multiple access.
+
+初始化一个互斥锁 `pthread_mutex_t myMutex = PTHREAD_MUTEX_INITIALIZER`，锁的种类有三种，默认为fast mutex.
+
+```
+PTHREAD_MUTEX_INITIALIZER Fast mutex
+PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP Recursive mutex
+PTHREAD_ERRORCHECK_MUTEX_INITIALIZER_NP Error-checking mutex
+```
+
+The recursive mutex is a special mutex that allows the mutex to be locked several times (without blocking), as long as it’s locked by the same thread. Even though the mutex can be locked multiple times without blocking, the thread must unlock the mutex the same number of times that it was locked. The error-checking mutex can be used to help find errors when debugging. Note that the _NP suffix for recursive and error-checking mutexes indicates that they are not portable.
+
+当你已经有一个互斥锁变量后，就可以使用这个变量对一段代码块进行加锁。
+
+```c
+int pthread_mutex_lock( pthread_mutex_t *mutex );
+int pthread_mutex_trylock( pthread_mutex_t *mutex );
+int pthread_mutex_unlock( pthread_mutex_t *mutex );
+int pthread_mutex_destroy( pthread_mutex_t *mutex );
+```
+
+All errors returned from `pthread_mutex_lock` and `pthread_mutex_unlock` are assertable (not recoverable). therefore, you use the return of these functions to abort your program.
+
+如果一个互斥锁已经被锁了，trylock函数不会阻塞，你可以通过判断返回值来做一些其他的事情。
+
+```c
+ret = pthread_mutex_trylock( &cntr_mutex );
+if (ret == EBUSY) {
+/* Couldn’t lock, do something else */
+} else if (ret == EINVAL) {
+/* Critical error */
+assert(0);
+} else {
+/* Critical Section */
+ret = thread_mutex_unlock( &cntr_mutex );
+}
+```
+
+记得使用destory函数来销毁一个锁。
+
+```c
+ret = pthread_mutex_destroy( &cntr_mutex );
+if (ret == EBUSY) {
+/* Mutex is locked, can’t destroy */
+} else {
+/* Mutex was destroyed */
+}
+```
+
+一旦你成功对一段代码锁上了，就可以放心的修改这段代码中的数据，不用担心数据同时被其他线程修改。被加锁的代码片段要尽可能的短少，正如critical section名字所表达的，它是一个非常重要的区域，制作关键的事情，因为其他线程此时被阻塞会影响程序整体性能。
+
+##### Thread Condition Variables
+
+线程的条件变量可用于一个线程在达到某种条件后唤醒另一个线程。使用互斥锁的方式，一个线程要执行一段代码需要不停的去获取锁，再检查条件是否满足，然后释放锁，如果条件不满足，就会存在多余重复的不停加锁和解锁操作，影响程序性能。
+
+```c
+int pthread_cond_wait( pthread_cond_t *cond,
+pthread_mutex_t *mutex );
+int pthread_cond_timedwait( pthread_cond_t *cond,
+pthread_mutex_t *mutex,
+const struct timespec *abstime );
+int pthread_cond_signal( pthread_cond_t *cond );
+int pthread_cond_broadcast( pthread_cond_t *cond );
+int pthread_cond_destroy( pthread_cond_t *cond );
+```
+
+创建一个条件变量:`pthread_cond_t recoveryCond = PTHREAD_COND_INITIALIZER;`
+
+一个条件变量需要一个互斥锁和它关联起来，因此还需要`pthread_mutex_t recoveryMutex = PTHREAD_MUTEX_INITIALIZER;`在错误处理线程函数中，循环检测当前的负载是否超过阈值，如果没有超过线程就一直等待条件变量。由于`pthread_cond_wait`函数每次进入时会对mutex变量先解锁，函数退出时又会自动加锁，因此在`pthread_cond_wait`外面需要对mutex变量先加锁，再解锁。内部的while循环用来确保判断等待的条件是否满足。
+
+```c
+/* Fault Recovery Thread Loop */
+while ( 1 ) {
+	assert( pthread_mutex_lock( &recoveryMutex ) == 0);
+	while (workload < MAX_NORMAL_WORKLOAD) {
+		pthread_cond_wait( &recoveryCond, &recoveryMutex );
+	}
+	/*————————*/
+	/* Recovery Code. */
+	/*————————*/
+	assert( pthread_mutex_unlock( &recoveryMutex ) == 0);
+}
+```
+
+发送条件满足的信号，`pthread_cond_signal`通知等待条件变量的线程可以继续工作了，broadcast通知所有等待条件变量的线程，第一个收到通知的线程结束等待，并拿到锁，执行它的任务，然后另一个线程再拿到锁，执行它的任务。所有的线程都能收到条件变量的通知。收到条件变量的多个线程之间时串行的，因为wait结束执行都要拿到互斥锁mutex。
+
+```c
+pthread_mutex_lock( &recoveryMutex );
+pthread_cond_signal( &recoveryCond );
+//pthread_cond_broadcast( &recoveryCond );
+pthread_mutex_unlock( &recovery_Mutex );
+```
+
+支持超时时间的条件变量等待，当时间到了后，函数返回调用者继续执行，通过判断返回值ETIMEDOUT来判断是否时超时导致的线程继续执行。
+
+```c
+struct timeval currentTime;
+struct timespec expireTime;
+int ret;
+...
+assert( pthread_mutex_lock( &recoveryMutex ) == 0);
+gettimeofday( &currentTime );
+expireTime.tv_sec = currentTime.tv_sec + 1;
+expireTime.tv_nsec = currentTime.tv_usec * 1000;
+ret = 0;
+while ((workload < MAX_NORMAL_WORKLOAD) && (ret != ETIMEDOUT) {
+	ret = pthread_cond_timedwait( &recoveryCond, &recoveryMutex,
+					&expireTime );
+}
+if (ret == ETIMEDOUT) {
+	/* Timeout — perform timeout processing */
+} else {
+	/* Condition met — perform condition recovery processing */
+}
+assert( pthread_mutex_unlock( &recoveryMutex ) == 0);
+```
+
+不要忘记条件变量的销毁
+
+`pthread_mutex_destroy( &recoveryCond );`这个函数会检测当前的变量是否还有线程在等待。
+
+```c
+#define MAX_CONSUMERS (10)
+long countVariable = 0;
+pthread_mutex_t cond_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t condition = PTHREAD_COND_INITIALIZER;
+// 生产者每创建一个任务就通知消费者处理一个
+void *producerFunc(void* arg)
+{
+	int ret = 0;
+	double result = 0.0;
+	printf("producer started\n");
+	for (int i = 0; i < 30; ++i)
+	{
+		ret = pthread_mutex_lock(&cond_mutex);
+		if (ret == 0)
+		{
+			printf("producer create work (%d)\n", countVariable);
+			countVariable++;
+			pthread_cond_broadcast(&condition);
+			pthread_mutex_unlock(&cond_mutex);
+		}
+
+		for (int i = 0; i < 600000; ++i)
+		{
+			result = result + (double)random();
+		}
+	}
+
+	printf("producer finished\n");
+	pthread_exit(NULL);
+}
+
+void *consumerFunc(void* arg)
+{
+	int ret;
+	//you won’t ever join with the creating thread
+	pthread_detach(pthread_self());
+
+	printf("Consumer %x: Started\n", pthread_self() );
+
+	while(1) {
+		assert(pthread_mutex_lock( &cond_mutex ) == 0);
+		assert( pthread_cond_wait( &condition, &cond_mutex ) == 0);
+      	printf("Consumer %x: recv condition\n", pthread_self());
+      	// assume that work is available as the condition is broadcast to all threads
+		if (countVariable)
+		{
+			countVariable--;
+			printf("Consumer %x: Performed work (%d)\n", pthread_self(), countVariable);
+		}
+		assert(pthread_mutex_unlock(&cond_mutex)==0);
+	}
+
+	// never executed, because the thread is cancel by the creator
+	printf("Consumer %x: Finished\n", pthread_self() );
+
+	pthread_exit( NULL );
+}
+
+int thread_conditon_demo()
+{
+	pthread_t consumers[MAX_CONSUMERS];
+	pthread_t producer;
+
+	// spawn the consumer thread
+	for (int i = 0; i < MAX_CONSUMERS; ++i)
+	{
+		pthread_create(&consumers[i], NULL, consumerFunc, NULL);
+	}
+
+	// spawn the producer thread
+	pthread_create(&producer, NULL, producerFunc, NULL);
+
+	// wait for the producer thread
+	pthread_join(producer, NULL);
+	// wait for all the consumer finish their work
+	while((countVariable>0));
+
+	// cancel and join the consumer threads
+	for (int i = 0; i < MAX_CONSUMERS; ++i)
+	{
+		pthread_cancel(consumers[i]);
+	}
+
+	pthread_mutex_destroy(&cond_mutex);
+	pthread_cond_destroy(&condition);
+
+	return 0;
+}
+```
+
+The design of multithreaded applications follows a small number of patterns (or models). The master/servant model is common where a single master does outwork to a collection of servants. The pipeline model splits work up into stages where one or more threads make up each of the work phases.
+
+##### re-entrancy
+
+One topic that’s important to discuss in multithreaded applications is that of re-entrancy. Consider two threads, each of which uses the strtok function. This function uses an internal buffer for token processing of a string. This internal buffer
+can be used by only one user at a time, which is fine in the process world (forked processes), but in the thread world runs into problems. If each thread attempts to call strtok, then the internal buffer is corrupted, leading to undesirable (and unpredictable) behavior. To fix this, rather than using an internal buffer, you can use a thread-supplied buffer instead. This is exactly what happens with the thread-safe version of strtok, called strtok_r. The suffix _r indicates that the function is
+thread-safe.
 
 ###Debugging and Test
 
