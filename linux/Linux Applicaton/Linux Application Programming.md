@@ -380,6 +380,143 @@ One topic that’s important to discuss in multithreaded applications is that of
 can be used by only one user at a time, which is fine in the process world (forked processes), but in the thread world runs into problems. If each thread attempts to call strtok, then the internal buffer is corrupted, leading to undesirable (and unpredictable) behavior. To fix this, rather than using an internal buffer, you can use a thread-supplied buffer instead. This is exactly what happens with the thread-safe version of strtok, called strtok_r. The suffix _r indicates that the function is
 thread-safe.
 
+#### Message Queue
+
+Linux中的消息队列API用于进程间通信(IPC)，通过一个固定的消息队列id，多个进程可以向消息队列中发消息，取消息。这个消息队列不属于任何一个进程。
+
+![message_queue.png](./images/message_queue.png)
+
+##### Create Message Queue
+
+`int msgget( key_t key, int msgflag );`
+
+这个接口有两个用途，创建一个消息队列或者根据一个消息队列id获取消息队列的句柄。参数key时一个整个系统范围唯一标识这个消息队列的id。key不能为0,也可以使用`IPC_PRIVATE`作为key，这样系统创建一个没有id的消息队列，由于没有id，其他线程没有办法访问这个消息队列。msgflag参数可以时两个参数的或运算。一般是一个命令类型和用户权限设置。
+
+命令类型有：
+
+* `IPC_CREAT`创建一个消息队列
+* `IPC_CREAT|IPC_EXCL`创建一个消息队列，如果这个消息队列已经存在，则返回错误信息EEXIST
+* `0` 获取一个消息队列的句柄
+
+访问权限类型有：
+
+![msg_permission](./images/msg_permission.png)
+
+例如`msgid = msgget( IPC_PRIVATE, IPC_CREAT | 0666 );`表示创建一个没有消息队列id的消息队列，所有用户都有读写权限。如果创建失败，返回值为-1,同时实际的错误代码通过进程的errno变量可以获取到。
+
+通过系统函数`ftok`可以创建一个唯一的id，这个函数通过指定一个目录的文件和一个数字来创建唯一的id，只要文件名路径时唯一的就可以。相同的路径和数字每次调用获取的返回值都是相同的。
+
+```c
+key_t msgKey;
+int msgid = 0;
+msgKey = ftok("/home/edison/msgqueue", 0);
+msgid = msgget(msgKey, 0666|IPC_CREAT);
+```
+
+通过msgget创建的消息队列的默认配置如下
+
+![msg_queue_default_cfg](./images/msg_queue_default_cfg.png)
+
+```c
+void create_msg_queue()
+{
+	key_t msgKey;
+	int msgid = 0;
+	msgKey = ftok(MSG_KEY, 0);
+	msgid = msgget(msgKey, 0666|IPC_CREAT);
+
+	if (msgid>=0)
+	{
+		printf("create a message queue %d\n", msgid);
+	}
+}
+```
+
+
+
+##### Configure Message Queue
+
+`int msgctl( int msgid, int cmd, struct msqid_ds *buf );`
+
+msgctl函数的第一个参数时消息队列的id，即消息队列的句柄，而不是消息队列的key。需要使用msgget来获取指定消息队列key的msgid，该函数主要有三个功能：
+
+* `IPC_STAT`获取一个消息队列的配置
+* `IPC_SET`设置一个消息队列的配置
+* `IPC_RMID`删除一个消息队列 `ret = msgctl( msgid, IPC_RMID, NULL );`,如果有一个进程正在阻塞调用msgsnd或msgrcv，这些函数将会返回-1和一个errno的值为EIDRM
+
+修改一个消息队列的配置需要先读出配置，再将修改后的配置写入原来的消息队列中，目前能改4个消息队列属性
+
+* `msg_perm.uid`  Message queue user owner
+* `msg_qbytes` Size of message queue in bytes
+* `msg_perm.mode` Permissions 
+* `msg_qbytes` Size of message queue in bytes
+
+```c
+void config_msg_queue()
+{
+	key_t msgKey;
+	int msgid = 0;
+	int ret = 0;
+	struct msqid_ds buf;
+	msgKey = ftok(MSG_KEY, 0);
+	// get the message id
+	msgid = msgget(msgKey, 0);
+	if (msgid>=0)
+	{		
+		ret = msgctl(msgid, IPC_STAT, &buf);
+		buf.msg_perm.uid = geteuid();
+		buf.msg_perm.gid = getegid();
+		buf.msg_perm.mode = 0644;
+		buf.msg_qbytes = 4096;
+
+		printf( "Number of messages queued: %ld\n", buf.msg_qnum);
+		printf( "Number of bytes on queue : %ld\n", buf.msg_cbytes);
+		printf("Last change time : %s", ctime(&buf.msg_ctime) );
+		if (buf.msg_stime) {
+			printf("Last msgsnd time : %s",ctime(&buf.msg_stime) );
+		}
+		if (buf.msg_rtime) {
+			printf("Last msgrcv time : %s",ctime(&buf.msg_rtime) );
+		}
+
+		ret = msgctl(msgid, IPC_SET, &buf);
+		if (ret == 0)
+		{
+			printf("config_msg_queue successfully\n");
+		}
+		else
+		{
+			printf("Error %d\n", errno);
+		}
+	}
+}
+
+void remove_msg_queue()
+{
+	key_t msgKey;
+	int msgid = 0;
+	int ret = 0;
+	struct msqid_ds buf;
+	msgKey = ftok(MSG_KEY, 0);
+	// get the message id
+	msgid = msgget(msgKey, 0);
+	if (msgid>=0)
+	{
+		ret = msgctl(msgid, IPC_RMID, NULL);
+		if (ret == 0)
+		{
+			printf("Remove msg queue successfully\n");
+		}
+		else
+		{
+			printf("Remove msg queue failed... %d\n", errno);
+		}
+	}
+}
+```
+
+
+
 ###Debugging and Test
 
 ####Advanced Debugging

@@ -1,0 +1,5 @@
+messageapp: message_demo.o
+	gcc  -o messageapp message_demo.o
+
+message_demo.o: message_demo.c
+	gcc -c -o message_demo.o message_demo.c 
