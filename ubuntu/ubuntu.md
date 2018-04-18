@@ -234,7 +234,107 @@ nothing to commit, working directory clean
 	geometry = 1099x491+337+341 219 227
 ```
 
+#### 安装openssh
+
+电脑中只有Ubuntu11.04，且系统中默认自带的只有ssh的客户端，而没有服务端。但是想体验下ssh登录Linux功能，只好自己编译安装虚拟机里面的openssh。查看系统中是否有ssh服务端运行`ps -e | grep ssh`
+
+```shell
+  30 ?        00:00:00 sshd
+  373 ?       00:00:00 ssh-agent
+```
+
+其中ssh-agent是ssh的客户端，而sshd才是后台服务，桌面版本系统一般都没有，需要自行安装
+
+在Ubuntu中编译安装程序需要`build-essential`，常用的gcc编译工具系统已经自带，缺少的只是autoconf和automake，编译autoconf需要m4，因此需要先安m4，直接到官网上下载最新的m4、autoconf和automake，使用`tar -xzvf xxx.tar.gz`解压后，进入目录，参考readme和Install两个文件编译，`make install`需要root权限，因为安装时一般需要安装到`/usr/local/`目录下，而普通用户没有写权限
+
+```
+./configure 
+make
+make test
+sudo make install
+```
+
+安装完编译环境后，准备安装openssh，在它的说明文档中写了依赖3个库，autoconf、zlib和openssl，安装时需要注意版本的匹配，不一定用最新的版本。我在ubuntu上zlib使用的最新版本，openssl使用的1.0.2m版本，openssh下载的时7.6版本。
+
+安装方法还是一样的make一套，只是openssl用的时`./config`，它里面根据系统的差异再去调用`./Configure`。需要注意的地方：
+
+* 不能在虚拟机vmware的共享目录下直接执行config编译openssl，需要拷贝到linux内部的目录中，否则在中间创建符号链接时会失败，make时提示`No rule to make target `../include/openssl/bio.h', needed by `cryptlib.o'. Stop.MAKE`
+* openssl编译时必须设置为动态库方式编译，否则openssh编译不了。`./config --shared`
+* 编译完成openssl后需要确认当前系统默认的openssl为自己刚刚编译的版本，如果系统之前自带了openssl，会导致openssh在configure时提示`checking OpenSSL header version... not found`错误。查看当前系统openssl版本`openssl version -a`。正常自己编译安装的程序如果在configure时不指定`--prefix=dir`安装目录的话，一般会安装在`/usr/local/ssl`，而系统默认的目录为`/usr/bin/openssl`以及`/usr/include/openssl`，因此需要创建符号链接，将刚编译的openssl作为默认，具体路径需要参考安装说明中的路径。
+
+```
+sudo mv /usr/bin/openssl /usr/bin/openssl.old
+sudo ln -s /usr/local/ssl /usr/bin/openssl
+sudo ln -s /usr/local/include/openssl /usr/include/openssl
+# 动态库目录设置,这个命令执行时提示没有权限，失败
+sudo echo "/usr/local/ssl/lib" >> /etc/ld.so.conf
+```
+
+在ubuntu中`/etc/ld.so.conf`指明了系统当前动态库的查找目录其中只有一句话
+
+```sh
+include /etc/ld.so.conf.d/*.conf
+```
+
+本质上就是包含了`ld.so.conf.d`这个目录下的所有动态库配置，例如其中就有一个libc.conf指明了c库的默认位置为`/usr/local/lib`，同理可以在这个目录下新建一个openssl.conf的文件，在其中加一句话`/usr/local/ssl/lib`即可。在设置库目录后，需要执行一次`sudo ldconfig`来让系统更新一下库目录缓存`/etc/ld.so.cache`文件
+
+至此，openssh的make已经没有问题，但是在install时会提示`Privilege separation user sshd does not exist`，这个和openssh的分权用户有关，
+
+> 所谓特权分离(Privilege Separation)实际上是一种 OpenSSH 的安全机制，该特性默认开启，可通过配置文件中的 UsePrivilegeSeparation 指令开启或关闭。
+
+需要执行以下操作后，再`sudo make install`
+
+```shell
+sudo mkdir -p  /var/empty #设置一个空目录
+sudo chown 0:0 /var/empty #所有者和组，0代表"root"
+sudo chmod 000 /var/empty #目录权限设置为"000"
+sudo groupadd sshd #建立sshd组
+sudo useradd -g sshd -c 'sshd privsep' -d /var/empty -s /bin/false sshd #用于特权分离的非特权用户"sshd"
+```
+
+* 启动openssh服务
+
+编译安装的ssh不会创建`/etc/init.d/sshd`服务启动脚本，只有使用安装包安装的才有。因此要启动sshd服务，需要直接执行`sudo /usr/local/sbin/sshd`，注意此处不能直接执行`sudo sshd`，系统会提示要用绝对路径执行，网上有讲这个是因为sbin属于root用户，普通用户下是不能直接执行sbin下的命令。
+
+* 自动启动sshd
+
+  1. 在`/etc/rc.local`中的exit 0之前添加`/usr/local/sbin/sshd & `，让系统在初始化时执行
+
+  2. 自己手动创建一个sshd的shell脚本文件放在`/etc/init.d/`目录下，并给文件增加执行权限`chmod +x sshd`，文件的内容为
+
+     ```shell
+     #!/bin/bash 
+     cd /usr/local/sbin 
+     ./sshd & 
+     ```
+
+  3. 然后到/etc/rc3.d/目录下建立一个链接到刚刚的sshd文件，标识系统在3级运行时就启动这个服务
+
+     ```shell
+     # cd /etc/rc3.d 
+     # ln -s ../init.d/sshd S13sshd
+     ```
+     ​
+
+* `/etc/rcN.d/`简要说明
+
+init.d 目录下放了系统安装程序时对应的服务启动或停止的脚本，但是系统不是直接从这个目录中直接执行脚本文件，而是根据当前系统的运行级别来决定指定哪些脚本。
+init进程上来首先做的事是去读取/etc/目录下inittab文件中initdefault id值，这个值称为运行级别(run-level)。它决定了系统启动之后运行于什么级别。运行级别决定了系统启动的绝大部分行为和目的。这个级别从0到6 ，具有不同的功能。不同的运行级定义如下： 
+
+* 0 - 停机（千万别把initdefault设置为0，否则系统永远无法启动）
+* 1 - 单用户模式
+* 2 - 多用户，没有 NFS
+* 3 - 完全多用户模式(标准的运行级)
+* 4 – 系统保留的
+* 5 - X11 （x window)
+* 6 - 重新启动 （千万不要把initdefault 设置为6，否则将一直在重启 ）
+
+`/etc/rcN.d/`中的数字N就代表了对应的运行级别要执行的脚本的目录，通过这些目录将不同级别执行的服务区分。而所有的服务脚本本质都在init.d这个目录中，而rcN.d中则是软链接到了实际的脚本文件。例如级别3要启动的服务都放在rc3.d这个目录下。这个目录下文件名又以Sxx或Kxx开头，其中S表示启动一个服务，K标识停止一个服务，而xx标识执行的顺序，数字越小，越早执行，这样可以处理服务之间的相互依赖关系。
+
+​        
+
 ####deb
+
 deb是debian linus的安装格式，跟red hat的rpm非常相似，最基本的安装命令是：dpkg -i file.deb 
 dpkg 是Debian Package的简写，是为Debian 专门开发的套件管理系统，方便软件的安装、更新及移除。所有源自Debian的Linux发行版都使用dpkg，例如Ubuntu、Knoppix 等。
 以下是一些 Dpkg 的普通用法：
@@ -369,6 +469,10 @@ Go to any directory such as `/home/xxx/network/` and execute:
 1. check proxy address and port in the pac file, the default is SOCKS5 127.0.0.1:1080
 2. System setting->Network->Network proxy, set method with automatic, in the configuration URL input the pac file, here is `/home/xxx/network/autoproxy.pac`
 
+
+#####ShadowasocksR
+1. edit the `user-config.json` in shadowsocksr directory  with the server information  
+2. cd into the shadowsocks directory, and run `python local.py` 
 
 ####chrome adobe flash is out of date
 open `chrome://components/`, and check for update of Adobe Flash Player. This operation need a global proxy of system. Because we cant access google's server.

@@ -11,4 +11,7 @@ cpp/effectivecpp/obj
 .tags
 .tags_sorted_by_file
 
+*.o
 
+*.depend
+*.layout

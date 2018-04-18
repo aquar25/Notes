@@ -1365,6 +1365,8 @@ codes in the 500-599 range are server error message: the server received a reque
 通过一个独立的虚拟环境目录，来将不同的python隔离开来，可以把这个目录当作一个全新的安装
 virtualenv 在2.6-3.4都可使用，默认安装了pip和easy_install
 python 3.3以后系统内建了该功能pyvenv：
+Ubuntu16.04自带的python3.5需要使用
+`python3 -m virtualenv py35`
 
 - windows上使用命令 python -m venv mydir  //创建mydir为根目录的python虚拟环境
   通过执行该目录下 mydir\Scripts\active     // 启动该虚拟环境

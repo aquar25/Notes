@@ -17,14 +17,14 @@
 
 1456661732 e:\c++\effectivecpp\include\baseitem.h
 
-1456662356 source:/media/edison/data/DevNotes/Notes/cpp/effectivecpp/src/BaseItem.cpp
+1489504039 source:/media/edison/data/DevNotes/Notes/cpp/effectivecpp/src/BaseItem.cpp
 	<iostream>
 	<cstring>
 	"BaseItem.h"
 
-1456661732 /media/edison/data/DevNotes/Notes/cpp/effectivecpp/include/BaseItem.h
+1489504014 /media/edison/data/DevNotes/Notes/cpp/effectivecpp/include/BaseItem.h
 
-1488724562 source:/media/edison/data/DevNotes/Notes/cpp/effectivecpp/main.cpp
+1489502407 source:/media/edison/data/DevNotes/Notes/cpp/effectivecpp/main.cpp
 	<iostream>
 	<BaseItem.h>
 	<vector>
@@ -35,5 +35,6 @@
 	<string.h>
 	"Blob.h"
 
-1488726252 /media/edison/data/DevNotes/Notes/cpp/effectivecpp/include/Blob.h
+1489504098 /media/edison/data/DevNotes/Notes/cpp/effectivecpp/include/Blob.h
+	"BaseItem.h"
 
