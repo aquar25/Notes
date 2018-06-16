@@ -13,6 +13,14 @@ initrd (hd0,0)/initrd.lz
 ```
 6. restart the windows, select the NeoGrub menu to install ubuntu system.
 
+####upgrade my 16.04 to 18.04 LTS
+
+1. all the same as the above ubuntu 16.04 install steps
+2. when go to the select the partition, select the old boot partition and click change, format and use as /boot, do format also on the / partition. Please do not check the format for the /home partition, I still want the old files.
+3. after the install, the system is new with old /home file left.
+4. boot the ubuntu system by Easybcd on windows7: add new entry, select linux-> grub (legacy) -> select the boot partition, and give a new name Ubuntu 18.04. This will generate a mbr file with name `nst_linux-245D575CFD27300E2FE9BE42BCB5805A.mbr` under `c:\NST\`
+5. when the PC startup, just select the Ubuntu 18.04
+
 ####Disk Partition
 add new partition  `/` for system (14326M)
 add new partition  `swap` (1536M)
@@ -41,7 +49,7 @@ add new Partition `/boot` for grub (200M)
 5.  restart the system and check the size of /home is now bigger. using `df -kh` to check the mount information of current system. If everything is all right, just `sudo rm -r /old_home` 
 
 ####Video Card Driver
-* install nvidia driver `sudo apt-get install nvidia-361 nvidia-prime`
+* install nvidia driver `sudo apt-get install nvidia-390 nvidia-prime`
 * reboot the system, but we cant login with x-window
 * cmd+alt+F1, login system with tty1
 * check the system's default card `prime-select query`, this will output `nvidia`
