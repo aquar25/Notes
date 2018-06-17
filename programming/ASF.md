@@ -2,7 +2,7 @@
 ArchiSteamFarm 
 这是一个服务器端的程序，当然也可以在本地的PC上运行
 1. 可以用来挂卡
-2. 和小号聊天，让机器人执行命令，批量激活游戏
+2. 和小号聊天，让机器人执行命令，批量激活游戏 
 
 ###Install
 ####Install .NET Core prerequisites
