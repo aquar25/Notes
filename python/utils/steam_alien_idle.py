@@ -262,6 +262,6 @@ def run_game(user, token):
                 pass
 
 if __name__ == '__main__':    
-    t1 = threading.Thread(target=run_game, args=('bottle', '6a3a6b2ba0539aeef96ae814f223eabe')).start()
+    t1 = threading.Thread(target=run_game, args=('bottle', '')).start()
     time.sleep(60)
-    t2 = threading.Thread(target=run_game, args=('walker', '0b1d29e1e9118ccb121a105dc3a60f19')).start()
+    t2 = threading.Thread(target=run_game, args=('walker', '')).start()
