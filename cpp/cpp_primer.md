@@ -204,10 +204,12 @@ BlobPtr<T> BlobPtr<T>::operator++(int)
 }
 ```
 
-###Chapter 12.1 
+### Chapter 12.1 
 
-#####12.1.1 智能指针
+##### 12.1.1 智能指针
+
 程序中使用动态内存的地方：
+
 1. 不知道需要多少对象，数字不是常量，而是运行时才知道的
 2. 不知道具体需要哪种类型的对象，多态
 3. 在多个对象之间共享数据
@@ -319,7 +321,7 @@ const int *pci = new const int(1024);
 // allocate a default-initialized const empty string
 const string *pcs = new const string;
 ```
-   
+
 * 当内存无法满足new的大小时，new会抛出`bad_alloc`异常。我们可以阻止抛出异常使用placement new.这时可以传递一个参数给new，这里传递库提供的nothrow告诉new不要抛出异常，而是返回null。需要<new>这个头文件。
 ```c++
 // if allocation fails, new returns a null pointer
@@ -339,6 +341,120 @@ delete pi2; // ok: it is always ok to delete a null pointer
 const int *pci = new const int(1024);
 delete pci; // ok: deletes a const object         
 ```
+
+使用new分配的内存如果不释放，会造成内存泄漏
+
+delete一个指针后一定要把指向该地址的所有指针都赋值为nullptr，否则那个指针就是野指针，容易出现错误。
+
+##### 12.1.3 使用`new`和`shared_ptr`
+
+* `shared_ptr<T> p(q)` p管理new出来的的指针q，q必须可以转换为`T*`
+* `shared_ptr<T> p(u)` p从惟一指针(unique_ptr)u那里获取了指针所有权，u现在是null
+* `shared_ptr<T> p(q, d)` p声明了内建指针q，p将会使用callable对象d来释放q的资源而不是delete
+* `shared_ptr<T> p(p2, d)` p是智能指针p2的一个拷贝，只是p使用d作为释放资源的函数
+* `p.reset()` 如果p是惟一的一个指向当前对象的智能指针，reset会释放p现有的对象。
+* `p.reset(q)` 如果built-in pointer q is passed, makes p point to q, otherwise make p null.
+* `p.reset(q, d)` if d is supplied, will call d to free q otherwise uses delete to free q.
+
+使用内建的指针类型初始化`shared_ptr`时，必须使用显式的构造函数
+
+```c++
+shared_ptr<int> p1 = new int(1024); // error: must use direct initialization
+shared_ptr<int> p2(new int(1024)); // ok: uses direct initialization
+```
+
+* 不要混合使用内建的指针类型和智能指针
+
+如果同时使用了内建的指针类型，当智能指针释放了资源后，内建的指针可能还会在其他地方使用分配的资源。因此建议使用`make_shared`来创建智能指针，而不是用new的方式。使用智能指针时，直接使用值传递就可以了。
+
+```c++
+void process(shared_ptr<int> ptr)
+{
+	// use ptr
+} // ptr goes out of scope and is destroyed
+
+int *x(new int(1024)); // dangerous: x is a plain pointer, not a smart pointer
+process(x); // error: cannot convert int* to shared_ptr<int>
+process(shared_ptr<int>(x)); // legal, but the memory will be deleted!
+int j = *x; // undefined: x is a dangling pointer!
+```
+
+* 尽量避免使用`shared_ptr`的get，如果函数参数必须为原始的指针类型，则一定不能在直接释放指针的资源
+
+  ```c++
+  shared_ptr<int> p(new int(42)); // reference count is 1
+  int *q = p.get(); // ok: but don't use q in any way that might delete its pointer
+  { // new block
+      // undefined: two independent shared_ptrs point to the same memory
+  	shared_ptr<int>(q);
+  } // block ends, q is destroyed, and the memory to which q points is freed
+  int foo = *p; // undefined; the memory to which p points was freed
+  ```
+
+* reset 可以让一个智能指针管理一个新指针
+
+The reset member is often used together with `unique` to control changes to the object shared among several `shared_ptrs` Before changing the underlying object, we check whether we’re the only user. If not, we make a new copy before making the change:    
+
+```c++
+if (!p.unique())
+	p.reset(new string(*p)); // we aren't alone; allocate a new copy
+*p += newVal; // now that we know we're the only pointer, okay to change this object
+```
+
+* 当跳出一个函数后，函数内部的`shared_ptr`都会被释放，即使是异常跳出了函数。但是如果是函数内申请的内存，由于函数可能在执行内存的delete之前就已经跳出了，导致内存泄漏
+
+##### 使用智能指针避免内存泄漏或资源释放
+
+例如使用一个网络库时，连接`connection`的析构函数中没有断开连接的处理逻辑，如果我们忘记执行断开连接的函数，就会有资源没有释放。
+
+```c++
+struct destination; // represents what we are connecting to
+struct connection; // information needed to use the connection
+connection connect(destination*); // open the connection
+void disconnect(connection); // close the given connection
+void f(destination &d /* other parameters */)
+{
+    // get a connection; must remember to close it when done
+    connection c = connect(&d);
+    // use the connection
+    // if we forget to call disconnect before exiting f, there will be no way to close c
+}
+```
+
+这时可以使用自定义的`deleter`函数来弥补这个缺陷，这个函数使用智能指针内的对象的指针作为参数。
+
+`void end_connection(connection *p) { disconnect(*p); } `
+
+修改使用智能指针来管理连接
+
+```c++
+void f(destination &d /* other parameters */)
+{
+	connection c = connect(&d);
+	shared_ptr<connection> p(&c, end_connection);
+	// use the connection
+	// when f exits, even if by an exception, the connection will be properly closed
+}
+```
+
+当p被销毁时，它不会对里面的指针执行delete操作，而是执行`end_connection`,从而保证了连接可以被正确的释放。即使有抛出网络异常，`end_connection`总是可以被保证执行到。
+
+##### 使用智能指针的陷阱
+
+* 不要使用内建的指针初始化或使用reset不止一个智能指针对象
+* 不要对智能指针`get()`返回的指针使用delete，要它自己释放
+* 不要用`get()`的返回值来初始化或reset另一个智能指针
+* 如果使用了`get()`返回的指针，要留意这个指针可能被其他智能指针已经释放了。
+* 如果要释放除了new之外的资源，记得使用一个自定义的deleter
+
+##### unique_ptr
+
+`unique_ptr`一次只能管理一个指针对象。
+
+##### weak_ptr
+
+`weak_ptr`不会增加一个指针的引用计数，它必须使用一个`shared_ptr`来初始化
+
 
 
 ### Part III
@@ -403,6 +519,10 @@ HasPtr& HasPtr::operator=(HasPtr rhs)
 这个实现有两个好处：
 1. 不用判断是否是自我赋值了，因为右值被拷贝了一份
 2. 异常安全，copy构造的过程中new失败抛出异常在修改左值之前发生。
+
+
+
+
 
 
 
