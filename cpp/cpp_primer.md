@@ -1,4 +1,4 @@
-### 模板
+## 模板
 
 #### 函数模板
 
@@ -451,13 +451,157 @@ void f(destination &d /* other parameters */)
 
 `unique_ptr`一次只能管理一个指针对象。
 
+![unique_prt_fun](.\images\unique_prt_fun.PNG)
+
+初始化一个`unique_ptr`时，只能使用指针来初始化。
+
+ 由于`unique_ptr`只能管理一个对象，因此它不支持普通的拷贝和赋值操作。只能使用release或reset来改变一个`unique_ptr`指向的指针。
+
+```c++
+unique_ptr<string> p1(new string("Stegosaurus"));
+unique_ptr<string> p2(p1); // error: no copy for unique_ptr
+unique_ptr<string> p3;
+p3 = p2; // error: no assign for unique_ptr
+// transfers ownership from p1 (which points to the string Stegosaurus) to p2
+unique_ptr<string> p2(p1.release()); // release makes p1 null
+unique_ptr<string> p3(new string("Trex"));
+// transfers ownership from p3 to p2
+p2.reset(p3.release()); // reset deletes the memory to which p2 had pointed
+```
+
+if we do not use another smart pointer to hold the pointer returned from release, our program takes over responsibility for freeing that resource
+
+```c++
+p2.release(); // WRONG: p2 won't free the memory and we've lost the pointer
+auto p = p2.release(); // ok, but we must remember to delete(p)
+```
+
+* 编译器支持拷贝或赋值一个即将销毁的`unique_ptr`，这样`unique_ptr`可以用于函数返回值
+
+  ```c++
+  unique_ptr<int> clone(int p) {
+  	// ok: explicitly create a unique_ptr<int> from int*
+  	return unique_ptr<int>(new int(p));
+  }
+  unique_ptr<int> clone(int p) {
+  	unique_ptr<int> ret(new int (p));
+  	// . . .
+  	return ret;
+  }
+  ```
+
+* `auto_ptr`是老版本支持的，功能比`unique_ptr`少，且不支持在容器中使用。
+
+* `unique_ptr`自定义删除器的方法。覆盖默认的删除器会影响`unique_ptr`类型构造和reset，同时会影响关联容器中的比较操作
+
+```c++
+// p points to an object of type objT and uses an object of type delT to free that object
+// it will call an object named fcn of type delT
+unique_ptr<objT, delT> p (new objT, fcn);
+void f(destination &d /* other needed parameters */)
+{
+	connection c = connect(&d); // open the connection
+	// when p is destroyed, the connection will be closed
+	unique_ptr<connection, decltype(end_connection)*> p(&c, end_connection);
+	// use the connection
+	// when f exits, even if by an exception, the connection will be properly closed
+}
+```
+
+其中使用了`decltype`来指定函数指针的类型，由于`decltype(end_connection) `返回的是一个函数类型，需要使用*来指明它是一个函数指针。
+
 ##### weak_ptr
 
-`weak_ptr`不会增加一个指针的引用计数，它必须使用一个`shared_ptr`来初始化
+`weak_ptr`不会增加一个指针的引用计数，它必须使用一个`shared_ptr`来初始化。即使有`weak_ptr`指向着一个对象，只要shared_ptr`指向的对象计数为0，这个对象还是会被释放。
 
+![weak_ptr_fun](.\images\weak_ptr_fun.PNG)
 
+用法如下：
 
-### Part III
+```c++
+auto p = make_shared<int>(42);
+weak_ptr<int> wp(p); // wp weakly shares with p; use count in p is unchanged
+```
+
+由于`weak_ptr`指向的对象可能已经被释放了，因此需要使用`lock`来检测对象是否还存在。如果存在，`lock`返回一个`shared_ptr`，从而保证使用过程中这个对象不会被释放。
+
+```c++
+if (shared_ptr<int> np = wp.lock()) { // true if np is not null
+	// inside the if, np shares its object with p
+}
+```
+
+举例：
+
+```c++
+// StrBlobPtr throws an exception on attempts to access a nonexistent element
+class StrBlobPtr {
+public:
+	StrBlobPtr(): curr(0) { }
+	StrBlobPtr(StrBlob &a, size_t sz = 0):wptr(a.data), curr(sz) { }
+	std::string& deref() const;
+	StrBlobPtr& incr(); // prefix version
+private:
+	// check returns a shared_ptr to the vector if the check succeeds
+	std::shared_ptr<std::vector<std::string>>check(std::size_t, const std::string&) const;
+	// store a weak_ptr, which means the underlying vector might be destroyed
+	std::weak_ptr<std::vector<std::string>> wptr;
+	std::size_t curr; // current position within the array
+};
+```
+
+第二个构造函数使用一个`StrBlob`对象的引用，并将其中的`shared_ptr`成员data初始化了`wptr`
+
+```c++
+std::shared_ptr<std::vector<std::string>>
+StrBlobPtr::check(std::size_t i, const std::string &msg) const
+{
+	auto ret = wptr.lock(); // is the vector still around?
+	if (!ret)
+		throw std::runtime_error("unbound StrBlobPtr");
+	if (i >= ret->size())
+		throw std::out_of_range(msg);
+	return ret; // otherwise, return a shared_ptr to the vector
+}
+```
+
+由于`weak_ptr`不会增加引用计数`check`函数中先判断对象是否存在，然后返回了指向vector的`shared_ptr`
+
+解引用的实现
+
+```c++
+std::string& StrBlobPtr::deref() const
+{
+	auto p = check(curr, "dereference past end"); // p is a shared_ptr to the vector
+	return (*p)[curr]; // (*p) is the vector to which this object points
+}
+// prefix: return a reference to the incremented object
+StrBlobPtr& StrBlobPtr::incr()
+{
+	// if curr already points past the end of the container, can't increment it
+	check(curr, "increment past end of StrBlobPtr");
+	++curr; // advance the current state
+	return *this;
+}
+```
+
+由于这个类`StrBlobPtr`访问了`StrBlob`的成员，需要设置为友元类
+
+```c++
+// forward declaration needed for friend declaration in StrBlob
+class StrBlobPtr;
+class StrBlob {
+	friend class StrBlobPtr;
+	// other members as in § 12.1.1 (p. 456)
+	// return StrBlobPtr to the first and one past the last elements
+	StrBlobPtr begin() { return StrBlobPtr(*this); }
+	StrBlobPtr end() { auto ret = StrBlobPtr(*this, data->size());return ret; }
+};
+```
+
+### 12.2 动态数组
+
+## Part III
 
 #### 13.3 Swap
 一个有动态分配资源的类一般会定义自己的swap函数，在stl的算法需要对对象进行排序时，交换两个元素比使用std::swap会提高效率。如果一个类定义了自己的swap函数，库就会优先匹配到当前类的swap而不是std的。
