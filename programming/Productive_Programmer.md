@@ -1,0 +1,113 @@
+### 生产力法则
+
+* 熟悉常用的快捷键，例如浏览器的自动补全www com 可以使用`ctrl+enter`
+* 一旦一件东西有了名字，当再次看到它时就会更容易认出来，例如我们给每一种设计模式起了一个具体的名字，就在很容易识别和应用了。
+
+#### 加速法则
+
+提高速度
+
+#### 专注法则
+
+减少环境（物理和心理）的混乱，有效搜索、消除干扰
+
+#### 自动化法则
+
+让计算机为你做更多的事
+
+把一些自己定时执行的任务借助系统或脚本来自动化
+
+我自己每天有哪些工作是定期需要执行的？是否可以自动化？
+
+下班前自动启动编译，自动关机。。。
+
+##### 建立本地缓存
+
+* 对于经常需要到网上查的资料例如API，可以缓存到本地，使用`wget`可以将整个网站镜像到本地
+
+`wget --mirror -w 2 --html-extension --convert-links -P D:\wget_files\exmaple`
+
+`--mirror` 递归跟踪网站链接，下载所有需要的文件。默认只会下载上次镜像之后有更新的文件
+
+`--html-extension`把网站里cgi或php文件转为html
+
+`--convert-links`转换URI链接为本地链接
+
+* cURL可以与网页交互获取内容或抓取资源。使用`-d`采取post请求
+
+`curl -d "name=id&pass=xxx" www.xxx.com/get.cgi`
+
+##### 构建工具
+
+常用的构建工具支持了对文件的批量处理，不用我们自己写脚本，可以用在其他领域自动化实现一些操作。例如使用`Ant`来批量处理一个目录下的所有文件。现在可以使用`Gradle`
+
+每次开机都要用sublime打开4个指定的文件，可以使用批处理自动化实现
+
+##### 使用Selenium浏览网页
+
+作为一个自动化测试工具，可以用它录制脚本执行一些常规操作，以后只需要回放就可以
+
+##### 使用bash处理文本文件
+
+日志文件很多，又大，自己怎么找有用的信息呢？
+
+```bash
+#!/bin/bash
+for X in $(egrep -o "[A-Z]\w*Exception" log_week.txt | sort | uniq);
+do
+    echo -n -e "processing $X\t" #输出异常信息到控制台
+    grep -c "$X" log_week.txt    #统计这个异常信息在日志文件中出现的次数
+done
+```
+
+`egrep -o`找出日志文件中出现在Exception之前的文字，对它们排序得到一个去重的列表
+`"[A-Z]\w*Exception"`定位异常信息的正则表达式
+`| sort`将之前的结果通过管道给sort，生成一个排序后的异常列表
+`| uniq`去掉重复信息
+`for X in $(...);`对列表中的每一项循环处理
+
+##### 使用Windows Power Shell
+
+开发版本的代号为Monad。PS中的命令(cmdlet)知道代表操作系统构造的对象，如文件、目录、甚至事件查看器。
+
+把2016-12-01之后更新过的文件拷贝到目标目录
+
+`dir | where-object {$_.LastWriteTime -gt "12/1/2006"} | move-item -destination c:\dstDir`
+
+关闭内存超过15M的进程
+
+bash: `ps -el | awk '{ if ($6 > (1024*15)) { print $3}}' | grep -v PID | xargs kill`
+
+ps:`get-process | where { $_.VS -gt 15M} | stop-process`
+
+ps使用.NET实现，因此可以使用标准的.Net类型，如获取String类的所有方法
+
+`get-member -input "String" -membertype method`
+
+##### 命令行Subversion
+
+添加一个目录下所有未加到库里面的文件
+
+`svn st | grep '^\?' | tr '^\?' ' ' | sed 's/[ ]*//' | sed 's/[ ]/\\ /g' | xargs svn add`
+
+`svn st `获取当前目录和子目录中文件的状态，每个文件一行，没有在版本库的以?开头
+`grep '^\?' `找出以?开头的行
+`tr '^\?' ' ' `把？替换为空格
+`sed 's/[ ]*//' `把每行开头的空格去掉
+`sed 's/[ ]/\\ /g'`把文件名中的空格前加上\转义字符
+`xargs svn add`针对前面处理的结果，逐一调用svn add命令
+
+
+
+> 手工执行简单重复的任务会让你变傻，会消耗你的注意力，而注意力是最重要的生产力之源。
+
+修改`bash_profile`创建别名，例如
+
+`alias catout='tail -f /Users/xxx/bin/logs/catalina.out'`
+
+`alias mysql='/usr/local/mysql/bin/mysql -u root'`
+
+#### 规范性
+
+DRY(Don't repeat yourself) 去除重复存在的信息，为每个信息创建唯一的存放处
+
