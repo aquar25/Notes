@@ -24,6 +24,21 @@ app.config['dbconfig'] = {'dbname':DB_FILE,}
 
 app.secret_key = 'xxxxooooo'
 
+from flask import abort
+
+@app.route('/bad')
+def bad_handle():
+    abort(404)
+
+@app.route('/love/<name>')
+def love_handle(name):
+    return '<h1>Robot love %s !</h1>' % name, 400
+
+@app.route('/browser')
+def browser():
+    user_agent = request.headers.get('User-Agent')
+    return '<p>Your browser is %s</p>' % user_agent
+
 @app.route('/')
 def home() ->'302':
     # redirect to the future page
@@ -173,5 +188,6 @@ def add_log_db(year, month, day, address, browser):
 if __name__ == '__main__':
     init_database()
     app.run('0.0.0.0', debug=True)
+
 
 

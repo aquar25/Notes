@@ -1,0 +1,22 @@
+{% extends 'base.html' %}  
+
+{% block body %}   
+
+<h2>{{ the_title }}</h2>
+
+<p> video link is:</p>
+
+<video width="320" height="240" controls="">
+  <source src="{{vsrc}}" type="video/mp4">
+</video>
+
+{% import 'common.html' as macros %}
+<ul>
+    {% for comment in comments %}
+        {{ macros.render_comment(comment) }}
+    {% endfor %}
+</ul>
+
+{% endblock %} 
+
+

@@ -1,0 +1,68 @@
+{% extends 'base.html' %}  
+
+{% block head %} 
+
+<link rel="stylesheet" type="text/css" href="static/css/DPlayer.min.css">
+<script type="text/javascript" src="../static/scripts/DPlayer.min.js"></script>
+
+{% endblock %}
+
+{% block body %}   
+
+<p>html5 default video is:</p>
+
+<video width="320" height="240" controls="">
+  <source src="{{vsrc}}" type="video/mp4">
+</video>
+
+<p>DPlayer video is:</p>
+
+<div id="dplayer" class="dplayer" width="320" height="240">
+    
+</div>
+
+<script type="text/javascript">
+var dplayer = new DPlayer({
+    container: document.getElementById('dplayer'),
+    autoplay: false,
+    theme: '#FADFA3',
+    loop: false,
+    screenshot: true, //截屏
+    hotkey: false,
+    logo: '/static/favicon.ico',
+    video: {  //视频源 包含不同分辨率源
+        quality: [{
+            name: '普清',
+            url: "{{vsrc}}"
+        },{
+            name: '高清',
+            url: "{{vsrc}}"
+        }, {
+            name: '超清',
+            url: "{{vsrc}}"
+        }],
+        defaultQuality: 0,
+        pic: '',
+        type: 'auto'
+    }
+});
+
+// dplayer.on('play', funcition(){
+// 　　console.log("start play video");
+// });
+
+// dplayer.on('pause', funcition(){
+// 　　console.log("pause video at " + dplayer.video.current.currentTime);
+// });
+
+
+</script>
+
+{% endblock %} 
+
+
+
+
+
+
+

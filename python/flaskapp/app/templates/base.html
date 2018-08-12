@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+{% block head %}
+<title>{% block title %} {% endblock %} {{ the_title }}</title>
+
+<link rel="stylesheet" type="text/css" href="static/base.css">
+<link rel="shortcut icon" href="{{ url_for('static', filename = 'favicon.ico') }}" type="image/x-icon">
+<link rel="icon" href="{{ url_for('static', filename = 'favicon.ico') }}" type="image/x-icon">
+
+{% block scripts %} 
+
+{% endblock %}
+
+{% endblock %}
+</head>
+<body>
+
+{% block body %} 
+ 
+{% endblock %}
+
+</body>
+</html>
