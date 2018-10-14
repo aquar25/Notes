@@ -163,7 +163,7 @@ python中的所有sequence都支持slice操作，不止list
 a_list = [x**2 for x in range(10) if x % 2==0]
 得到 [0, 4, 16, 36, 64]，先执行for遍历一个列表（0-9十个数字），在判断满足if条件的元素，最后将满足条件的元素执行平方操作，得到一个新的列表。其中x**2可以是任何可以执行的表达式
 
-###元组
+### 元组
 
 Tuple is an ordered immutable collection of objects.
 
@@ -216,8 +216,7 @@ Python's *for* loop can be used to iterate over a dictionary. On each iteration,
 
 
 
-
-###集合
+### 集合
 
 Set is an unordered set of unique objects.
 
@@ -242,7 +241,7 @@ Set is an unordered set of unique objects.
 
 
 
-###编码
+### 编码
 
 由于世界上的各各个语言的字符太多，而在同一个文本文件中，可能存在多种语言的字符，因此需要一种编码可以覆盖所有语言的所有字符。Unicode就是做这个事情，UTF-32使用4个字节表示所有字符，但是实际上大部分语言一共也没有用到65535个字符，而4个字节的UTF-32中却却存在一堆不是你当前使用语言需要的字符。为了节省空间就定义了utf-16，使用两个字节来表示一个字符字符中，两个字节构成的0-65535之间的每一个数字映射到一个字符。  
 但是使用两个字节表示一个字符又有新问题，不同的系统设备上字节顺序不同，例如俩个字节 12 34 在另一个系统中可能就是34 12的顺序，因此需要字节顺序定义Byte Order Mark(BOM)在文档中定义，如果打开一个以字节FF FE开头的UTF-16文档，你就能确定她的字节顺序是单向的了，如果是以FE FF开头则说明那个字节序时反向的
@@ -608,7 +607,7 @@ options = {1:'NAME', 2:'VALUE', 3:'WORD', 4:'PYTHON', 5:'GOOGLE'}
 
   ​
 
-####生成器表达式(Generator Expression)
+#### 生成器表达式(Generator Expression)
 
 `gen_exp = (a for a in range(15) if a % 3 == 0) #0 3 6 9 12`
 生成器表达式使用()来定义，返回的也是一个迭代器，可以使用for遍历,next(gen_exp)或者调用tuple/set/list来得到相应的容器  

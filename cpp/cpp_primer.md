@@ -601,6 +601,105 @@ class StrBlob {
 
 ### 12.2 动态数组
 
+#### new and delete[]
+
+使用`type* p = new type[n]`得到的指针类型并不是数组类型，因此不能在得到的对象使用`begin`和`end`.默认情况下，使用new分配的内存无论是单个对象还是数组对象，都会被初始化。可以直接调用构造函数初始化对象。
+
+```c++
+string* pStr = new string[10]();
+// c++11
+int *pia3 = new int[10]{0, 1, 2, 3, 4, 5, 6, 7};
+// vc2013 does not support this feature
+//string *psa3 = new string[3]{"a", "an", "the"};
+// 可以创建一个0个元素的指针，得到的指针可以与0进行+或-，也可以与自己进行减法得到0
+char *cp = new char[0]; // ok: but cp can't be dereferenced
+
+delete[] pStr;
+
+// up points to an array of ten uninitialized ints
+unique_ptr<int[]> up(new int[10]);
+up.release(); // automatically uses delete[] to destroy its pointer
+for (size_t i = 0; i != 10; ++i)
+    up[i] = i; // assign a new value to each of the elements
+
+// to use a shared_ptr we must supply a deleter
+shared_ptr<int> sp(new int[10], [](int *p) { delete[] p; });
+sp.reset(); // uses the lambda we supplied that uses delete[] to free the array
+
+// shared_ptrs don't have subscript operator and don't support pointer arithmetic
+for (size_t i = 0; i != 10; ++i)
+    *(sp.get() + i) = i; // use get to get a built-in pointer
+
+```
+
+数组指针中的元素是逆序释放的，即最后一个元素的析构最早被执行。
+
+* 智能指针对动态数组内存的支持很差，可以忽略不使用
+标准库中的智能指针只有`unqiue_ptr`支持动态分配数组。而`shared_ptr`需要自己实现`deleter`,也不支持下标访问的方式，只能把内部指针取出来，再用索引来访问.而智能指针提供的接口都不能使用，因为解引用得到的是一个数组，而不是一个具体的数组元素。
+
+
+
+#### Allocator
+
+由于new把内存分配和对象构造绑定在一起，而delete把内存释放和析构绑定在一起，而有些时候我们只是希望分配内存空间，等需要的时候才去初始化对象，提高效率。
+
+例如使用一个string数组保存用户输入的数据，而在数组new的时候，数组中的每一个string都被初始化了，而后面用户输入的值还会把已经初始化过的string在覆盖一次，相当于一个对象被写了两次。
+
+allocator在`<memory>`中定义。它可以只分配内存，而不初始化对象。它是一个模板类，使用时需要指定一个它分配内存的类型。包含以下基本操作
+
+![allocator_opt](images/allocator_opt.png)
+
+
+
+```c++
+int size = 5;
+allocator<string> strAlloc;
+// size of memory is size*sizeof(string), no constructor is called
+auto const p = strAlloc.allocate(size); 
+
+auto q = p;  // memory is still cdcdcdcd on windows
+// construct object with constructor of string
+strAlloc.construct(q++);
+strAlloc.construct(q++, 10, 'c'); // "cccccccccc"
+strAlloc.construct(q++, "hi");    // "hi"
+
+cout << *(p + 1) << endl; // output the second item "cccccccccc"
+cout << *q << endl; // error, not initialize
+
+// call the destructor for each item
+while (q != p)
+{
+    strAlloc.destroy(--q);
+}
+
+// 使用算法接口初始化
+vector<string> vStr;
+vStr.push_back("from vector");
+// 在VC2013中编译该行时会提示 error C4996: 'std::_Uninitialized_copy0': Function call with parameters that may be unsafe - this call relies on the caller to check that the passed values are correct. To disable this warning, use -D_SCL_SECURE_NO_WARNINGS. See documentation on how to use Visual C++ 'Checked Iterators'。需要在编译选项的命令行参数中加上-D_SCL_SECURE_NO_WARNINGS，才能编译通过
+// 从另一个vector中拷贝元素类初始化动态内存，返回值指向下一个元素
+auto q2 = uninitialized_copy(vStr.begin(), vStr.end(), p + 3);
+// 初始化多个相同值
+uninitialized_fill_n(q2, 1, "low");
+
+cout << *(p + 3) << endl; // from vector
+cout << *(p + 4) << endl; // low
+
+// do not forget to destroy
+strAlloc.destroy(p + 3);
+strAlloc.destroy(p + 4);
+
+// free the memory, the point and size must right
+strAlloc.deallocate(p, size);
+```
+
+* allocator支持的算法，使用以下接口可以很方便的对内存初始化和释放，而不用一个一个执行初始化
+
+![allocator_alg](images/allocator_alg.png)
+
+
+
+
+
 ## Part III
 
 #### 13.3 Swap
