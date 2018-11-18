@@ -15,3 +15,15 @@ cpp/effectivecpp/obj
 
 *.depend
 *.layout
+*.mp4
+tmp.html
+
+Qt5/Demo/x64
+Qt5/Demo/Demo/Debug
+Qt5/Demo/Demo/GeneratedFiles
+Qt5/Demo/Demo/x64
+*.usr
+*.sdf
+*.suo
+
+
