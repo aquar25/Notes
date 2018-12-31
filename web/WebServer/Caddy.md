@@ -286,3 +286,7 @@ http://memorywalker.com:8085 {
 }
 ```
 
+#### 端口占用
+
+1. `netstat -ano|findstr "80"`找出PID，其中最后一列是pid
+2. 结束进程 `taskkill /f /pid xxx`
