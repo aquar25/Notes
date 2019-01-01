@@ -158,3 +158,80 @@ https://cattail.me/tech/2015/11/30/how-https-works.html
 
 https://blog.cloudflare.com/keyless-ssl-the-nitty-gritty-technical-details/
 
+
+
+### 使用openssl
+
+可以使用openssl自己签发证书信任自己模拟CA的作用。
+
+* 出现错误`Can’t open C:\Program Files\Common Files\SSL/openssl.cnf for reading,no such file or directory `，需要设置环境变量`set OPENSSL_CONF=D:\test\openssl\openssl.cfg`
+* 执行openssl后进入`OpenSSL>`命令提示符，后续可以都在这个目录下执行
+* 强烈建议下载**v1.0.2**的版本，不要用**v1.1.0**以后的版本，因为会出现bug：“problem creating object tsa_policy1=1.2.3.4.1”
+
+#### CA证书生成
+
+* 创建CA的私钥 `OpenSSL>genrsa -out ca_private.key 2048` 文件头为`-----BEGIN RSA PRIVATE KEY-----`
+* 创建CA机构的证书请求`OpenSSL>req -new -out ca_req.csr -key ca_private.key`执行该命令后，会提示输入证书信息，包括用户名，省份，机构信息，以及一个安全密码. 文件头为`-----BEGIN CERTIFICATE REQUEST-----`
+* 创建CA的自签证书`OpenSSL>x509 -req -in ca_req.csr -out ca_cert.pem -signkey ca_private.key -days 365 `文件头为`-----BEGIN CERTIFICATE-----`
+* 证书导出成浏览器支持的.p12文件(在此输入的密码为证书安装时的密码) `OpenSSL>pkcs12 -export -clcerts -in ca_cert.pem -inkey ca_private.key -out ca.p12`
+* 直接安装证书文件，默认会在个人证书列，所以还是不受信任的。在安装时，可以在Certificate Store时，选择受信任的Root CA，此时windows会提示你信任这个证书后，这个CA签发的证书都会被你信任。Yes即可。
+* 在浏览的证书管理中可以看到自己添加的Root证书CA
+
+#### 签发服务端证书
+
+- 创建服务端的私钥 `OpenSSL>genrsa -out server_private.key 2048`
+- 创建服务端的证书请求`OpenSSL>req -new -out server_req.csr -key server_private.key`
+- 使用CA私钥签发服务证书`OpenSSL>x509 -req -in server_req.csr -out server_cert.pem -signkey server_private.key -CA ca_cert.pem -CAkey ca_private.key -CAcreateserial -days 365`
+- 转换证书文件`OpenSSL>pkcs12 -export -clcerts -in server_cert.pem -inkey server_private.key -out server.p12 `
+
+
+
+在上述步骤中创建服务端的证书请求时，如果在`OpenSSL>`下直接执行命令会提示“problem creating object tsa_policy1=1.2.3.4.1”，可以直接使用openssl的程序的方式`openssl.exe req -new -out server_req.csr -key server_private.key`，这样即使是相同的语法，也不会报错。可以使用`-config xxx.cnf`指定使用的配置选项，这样不用系统默认环境变量中的。
+
+* V3扩展证书，默认创建的证书是v1版本。使用V1版本的没有`alt_names`字段，服务器使用了服务端证书浏览器依旧提出`SSL_PROTOCOL_ERROR`
+
+`openssl\openssl.exe x509 -req -extfile server_ssl.cnf -extensions v3_req -in server_req.csr -out server_cert.pem -signkey server_private.key -CA ca_cert.pem -CAkey ca_private.key -CAcreateserial -days 365`
+
+其中的`-extfile server_ssl.cnf -extensions v3_req`  指明生成V3版本证书
+
+`server_ssl.cnf`的内容如下(配置文件还有其他内容选项，可以研究一下)
+
+```
+[req]
+default_bits = 2048
+prompt = no
+default_md = sha256
+x509_extensions = v3_req
+distinguished_name = dn
+
+[dn]
+C = XX
+ST = XX
+L = XX
+O = XX
+OU = XX
+CN = Memorywalker
+
+[v3_req]
+subjectAltName = @alt_names
+
+[alt_names]
+# 这里需要添加服务器支持的域名
+DNS.1 = steamcommunity.com
+DNS.2 = *.steamcommunity.com
+DNS.3 = memorywalker.com
+
+[ v3_ca ]
+subjectKeyIdentifier=hash
+authorityKeyIdentifier=keyid:always,issuer
+basicConstraints = critical,CA:true
+keyUsage = keyCertSign, cRLSign
+extendedKeyUsage = serverAuth
+```
+
+- 查看一个证书内容
+
+`openssl.exe x509 -in xxx.crt -text -noout`
+
+
+
