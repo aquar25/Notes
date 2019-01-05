@@ -1,0 +1,28 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 2013
+VisualStudioVersion = 12.0.21005.1
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "LibeventWork", "LibeventWork\LibeventWork.vcxproj", "{D22C323D-6C36-44CC-BB0D-4848ED461706}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "LibeventWorkClient", "LibeventWork\LibeventWorkClient.vcxproj", "{599E1BA8-54C4-4B7F-B2CB-0FC3C84FED3E}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{D22C323D-6C36-44CC-BB0D-4848ED461706}.Debug|Win32.ActiveCfg = Debug|Win32
+		{D22C323D-6C36-44CC-BB0D-4848ED461706}.Debug|Win32.Build.0 = Debug|Win32
+		{D22C323D-6C36-44CC-BB0D-4848ED461706}.Release|Win32.ActiveCfg = Release|Win32
+		{D22C323D-6C36-44CC-BB0D-4848ED461706}.Release|Win32.Build.0 = Release|Win32
+		{599E1BA8-54C4-4B7F-B2CB-0FC3C84FED3E}.Debug|Win32.ActiveCfg = Debug|Win32
+		{599E1BA8-54C4-4B7F-B2CB-0FC3C84FED3E}.Debug|Win32.Build.0 = Debug|Win32
+		{599E1BA8-54C4-4B7F-B2CB-0FC3C84FED3E}.Release|Win32.ActiveCfg = Release|Win32
+		{599E1BA8-54C4-4B7F-B2CB-0FC3C84FED3E}.Release|Win32.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
