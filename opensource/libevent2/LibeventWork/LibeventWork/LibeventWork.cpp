@@ -14,7 +14,9 @@ int _tmain(int argc, _TCHAR* argv[])
 
 #ifdef _SERVER_
 	MemoryServer server;
-	server.Init();
+	//server.Init();
+	server.InitLibevent();
+
 #else
 	MemoryClient client;
 	client.Init();

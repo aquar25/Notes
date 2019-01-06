@@ -55,7 +55,9 @@ void MemoryClient::Init()
 		{
 			gets_s(szBuffer);
 			// 给服务器发送数据
-			ret = send(fdSocket, szBuffer, strlen(szBuffer), 0);
+			int strLen = strlen(szBuffer);
+			szBuffer[strlen(szBuffer)] = '\n';
+			ret = send(fdSocket, szBuffer, strLen+1, 0);
 			if (ret == SOCKET_ERROR) 
 			{
 				printf("Send error:%d\n", WSAGetLastError());

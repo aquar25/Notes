@@ -25,5 +25,12 @@ Qt5/Demo/Demo/x64
 *.usr
 *.sdf
 *.suo
+*.opensdf
+
+/opensource/libevent2/LibeventWork/ipch
+/opensource/libevent2/LibeventWork/Debug
+/opensource/libevent2/LibeventWork/LibeventWork/LibeventWorkDebug
+/opensource/libevent2/LibeventWork/LibeventWork/LibeventWorkClientDebug
+
 
 
