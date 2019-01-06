@@ -1,5 +1,7 @@
 ## Libevent
 
+2019-01-05 周末学习 外面雾霾很大
+
 Libevent是一个C语言实现的跨平台的网络异步IO库 官网http://libevent.org/
 
 官网建议的学习资料（基于2.0版本）
