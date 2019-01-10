@@ -366,6 +366,64 @@ do_write(int fd, struct fd_state *state)
 
 Linux有`epoll()`， BSDs (including Darwin) 的`kqueue()`, Solaris  `evports` 和`/dev/poll`。但是所有的这些接口在不同的平台上都不一样。**Libevent**对以上接口进行了统一的封装，根据当前的平台使用当前平台适合的select类似的底层接口，方便开发跨平台的程序。
 
+##### epoll
+
+`select()`调用中，内核只是通知我们关心的fd的状态就绪了，但不会把是哪一个告诉我们，但是我们还是需要从0开始循环遍历到系统分配给我们的最大的fd值，例如新建一个socket后，系统给的fd数字编号为5000，就要从0开始遍历到5000，然后发现5000这个fd的状态是可读，然后使用这个fd进行读数据。
+
+看到一个以收快递的例子：
+
+阻塞模式：你阻塞在家里等待快递员给你送快递，此时你什么都做不了，只能阻塞在门口看有没有快递员来，以免错过快递
+
+异步轮询模式：你不停的给每一个快递公司打电话问快递到了没，此时你一直很忙，也做不了其他事
+
+select的模式：你在家里面看电影或者做家务，9点的时候，你收到短信通知有快递到了，但是没有告诉你是那个包裹到了，你就要把门口的每一个快递员问一遍有没有你的快递。
+
+epoll模式：在短信里面告诉你是申通和铁通的快递快递到了，你就不用去把门口的所有快递员逐个问一遍了。
+
+```c
+// create fd for epoll self, tell the kernel care about 1000 fds 
+int epfd = epoll_create(1000);
+// add a care fd to epoll
+epoll_ctl(epfd, EPOLL_CTL_ADD, fd_conn, &care_event);
+
+while(1) {
+    // blocked wait for event trigger
+    int count = epoll_wait(epfd, events, 1000, -1);
+    
+    for (i = 0; i<count; i++)
+    {
+        if (events[i].data.fd == listen_fd)
+        {
+            // accept and add the new connnection fd to epoll
+        }
+        else if (events[i].events & EPOLLIN)
+        {
+             // read data from events[i].data.fd
+        }
+        else if (events[i].events & EPOLLOUT)
+        {
+             // write data to events[i].data.fd
+        }
+    }
+}
+   
+```
+
+##### epoll触发模式
+
+* 水平触发 只要一个fd没有被用户处理，下次内核还会通知，直到用户处理了
+* 边缘触发 一个fd的状态就绪后，只会通知一次，这个状态就被清除了
+
+#### 反应堆Reactor模式
+
+每一个事件句柄/描述符(handle)都和对应的事件处理接口(EventHandler)一起注册到反应堆中
+
+反应堆里面集成了一个多路事件分离器(demultiplexer)，用来检测是否有注册的事件发生。例如select或epoll函数，当然也可以使用自己维护的消息队列
+
+当一个事件被检测到触发后，反应堆把事件派发(dispatch)给处理这个事件的处理接口
+
+![reactor.png](./images/reactor.png)
+
 
 
 ### Libevent编译
