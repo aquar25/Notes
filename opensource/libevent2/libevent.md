@@ -472,9 +472,361 @@ while(1) {
 
 抽象了不同平台的网络编程的实现差异
 
-#### event and event_base
+#### event_base
 
-核心部分，提供了基于event的非阻塞IO后端。通知应用socket是否可以读或写，还包括了基本的超时功能以及检测系统信号。
+核心部分，提供了基于event的非阻塞IO后端。通知应用socket是否可以读或写，还包括了基本的超时功能以及检测系统信号。可以看做是Reactor模式的反应堆，其中注册了一堆event集合，检测哪个事件激活后，回调事件注册的处理函数。
+
+一个进程中可以创建多个`event_base`，每一个管理一组事件。`event_base`如果设置了使用锁，则可以在多个线程间访问，但是它的loop只能在一个线程中运行。
+
+##### 使用
+
+```c
+struct event_base *base;
+// 这个接口创建的为默认的event_base，检测系统环境变量选择一个最快的多路复用接口
+base = event_base_new();
+
+// 其他事件初始化和注册 
+// 事件循环loop
+event_base_dispatch(base);
+```
+
+##### 配置
+
+可以使用`event_config`并调用`event_base_new_with_config()`创建自定义的`event_base`
+
+```c
+struct event_config *event_config_new(void);
+struct event_base *event_base_new_with_config(const struct event_config *cfg);
+void event_config_free(struct event_config *cfg);
+// 指定不用哪些多路复用接口(后端接口)
+int event_config_avoid_method(struct event_config *cfg, const char *method);
+// 无法满足指定features的后端接口，例如支持边缘触发、或者支持任意类型的fd，如果不支持则不会被使用
+int event_config_require_features(struct event_config *cfg,
+                                  enum event_method_feature feature);
+// 设置属性例如不用锁来提高性能，或在Windows平台使用IOCP机制
+int event_config_set_flag(struct event_config *cfg,
+    enum event_base_config_flag flag);
+// (windows) 指示使用多少个cpu
+int event_config_set_num_cpus_hint(struct event_config *cfg, int cpus);
+// 获取可以使用的后端
+const char **event_get_supported_methods(void);
+// 获取实际使用的后端
+const char *event_base_get_method(const struct event_base *base);
+// 释放一个不再使用的event_base，不会释放它管理的event和fd
+void event_base_free(struct event_base *base);
+// 设置一个event_base支持的最大优先级个数，优先级范围为[0, n_priorities-1],0的优先级最高
+// 默认情况下，所以添加的event的优先级为n_priorities / 2
+int event_base_priority_init(struct event_base *base, int n_priorities);
+// 当创建一个子进程后，如果需要在子进程中继续使用event_base，需重新初始化
+int event_reinit(struct event_base *base);
+```
+
+举例：
+
+```c
+struct event_config *cfg;
+struct event_base *base;
+cfg = event_config_new();
+event_config_avoid_method(cfg, "select");
+event_config_require_features(cfg, EV_FEATURE_ET);
+
+base = event_base_new_with_config(cfg);
+
+event_config_free(cfg);
+
+if (fork()) {
+    /* In parent */
+    continue_running_parent(base); /*...*/
+} else {
+    /* In child */
+    event_reinit(base);
+    continue_running_child(base); /*...*/
+}
+```
+
+
+
+#### event
+
+Libevent的基本操作单元是一个事件。事件代表了一组条件发生了包括以下几种：
+
+* 一个fd现在可以读或写
+* 一个fd变得可以读或写
+* 超时的时间到了
+* 一个信号发生
+* 用户触发的事件
+
+##### 事件状态切换
+
+![event_state.png](./images/event_state.png)
+
+* 默认情况下，如果一个事件从pending变为active后，它就为non-pending状态了，如果要使其可以pending，可能需要在回调函数中手动调用一次add接口，此时可以设置为一个事件为`EV_PERSIST`，那么它在触发后，回调函数执行完会变为pending
+
+##### 事件相关接口
+
+```c
+// 回调函数声明
+typedef void (*event_callback_fn)(evutil_socket_t, short, void *);
+// 创建一个non-pending的event，what为事件类型，如果fd为非负，则为我们关心的fd
+struct event *event_new(struct event_base *base, evutil_socket_t fd,
+    short what, event_callback_fn cb,
+    void *arg); // 回调函数参数
+// 释放一个event
+void event_free(struct event *event);
+//  ev = event_new(base, -1, EV_PERSIST, cb_func, event_self_cbarg());
+void *event_self_cbarg(); // 返回当前创建的event对象的指针，使得event可以作为它的回调函数的参数 Libevent 2.1.1
+// 支持POSIX-style的signal，以evsignal_开头
+#define evsignal_new(base, signum, cb, arg) \
+    event_new(base, signum, EV_SIGNAL|EV_PERSIST, cb, arg)
+// 注册一个event，tv表示时间到了事件会触发，执行后事件变为pending状态
+int event_add(struct event *ev, const struct timeval *tv);
+// 把事件转换non-pending，如果一个事件处于active，且callback还没执行，此时执行了del会导致callback不会被执行了
+int event_del(struct event *ev);
+// 移除一个event的超时时间
+int event_remove_timer(struct event *ev);
+// event在初始化后，可以设置它的优先级
+int event_priority_set(struct event *event, int priority);
+// 以下接口获取event的状态
+int event_pending(const struct event *ev, short what, struct timeval *tv_out);
+#define event_get_signal(ev) /* ... */
+evutil_socket_t event_get_fd(const struct event *ev);
+struct event_base *event_get_base(const struct event *ev);
+short event_get_events(const struct event *ev);
+event_callback_fn event_get_callback(const struct event *ev);
+void *event_get_callback_arg(const struct event *ev);
+int event_get_priority(const struct event *ev);
+void event_get_assignment(const struct event *event,
+        struct event_base **base_out,
+        evutil_socket_t *fd_out,
+        short *events_out,
+        event_callback_fn *callback_out,
+        void **arg_out);
+// 获取当前运行的事件的指针
+struct event *event_base_get_running_event(struct event_base *base);
+// 创建一个只会触发一次的事件，callback调用之后Libevent会删除和释放这个event
+int event_base_once(struct event_base *, evutil_socket_t, short,
+  void (*)(evutil_socket_t, short, void *), void *, const struct timeval *);
+// 手动激活一个事件，在一个event的callback中手动激活这个event会导致死循环，可以先判断一个event时pending之后，先del在添加进base，并设置超时时间为0
+void event_active(struct event *ev, int what, short ncalls);
+```
+
+* 当关注同一个fd的两个事件都发生时，这两个事件对象的回调函数执行顺序是不确定的。
+* `evtimer_*`开头的宏方便创建timeout事件对`event_*`进行了重声明
+* 一个进程中如果有两个`event_base`监听信号，那么只有一个`event_base`可以监听到信号，即使是不同的signal，这个由系统提供的backend函数决定
+* 从2.1.2版本开始，如果释放了`event_base`，里面的event结构也会被释放，之前的版本不支持
+
+##### 举例
+
+```c
+void cb_func(evutil_socket_t fd, short what, void *arg)
+{
+        const char *data = arg;
+        printf("Got an event on socket %d:%s%s%s%s [%s]",
+            (int) fd,
+            (what&EV_TIMEOUT) ? " timeout" : "",
+            (what&EV_READ)    ? " read" : "",
+            (what&EV_WRITE)   ? " write" : "",
+            (what&EV_SIGNAL)  ? " signal" : "",
+            data);
+}
+
+struct event *ev1, *unimportant;
+struct timeval five_seconds = {5,0};
+struct event_base *base = event_base_new();
+event_base_priority_init(base, 2);
+important = event_new(base, fd1, EV_TIMEOUT|EV_READ|EV_PERSIST, cb_func,
+           (char*)"Reading event");
+event_priority_set(important, 0);
+unimportant = event_new(base, fd2, EV_WRITE|EV_PERSIST, cb_func,
+           (char*)"Writing event");
+event_priority_set(unimportant, 1);
+event_add(important, &five_seconds);
+event_add(unimportant, NULL);
+event_base_dispatch(base);
+```
+
+##### 使用非堆创建的event
+
+有些时候处于性能考虑，不想使用heap上创建的event，而想把event作为一个大结构的一部分。这样可以节省：
+
+* 堆上分配的小内存块负载
+* 解引用指向event内存指针的消耗
+* The time overhead from a possible additional cache miss if the  event is not already in the cache.
+
+这些都是非常小的损耗，对于大部分程序都不需要考虑。如果一定要用可以使用`event_assign()`来初始化栈上的event对象。但是使用这个方法存在不同版本的Libevent之间event对象的大小不同的风险。高级玩法，还是不要随便尝试了。
+
+```c
+int event_assign(struct event *event, struct event_base *base,
+    evutil_socket_t fd, short what,
+    void (*callback)(evutil_socket_t, short, void *), void *arg);
+// 获取当前版本的event结构的大小来处理兼容性
+size_t event_get_struct_event_size(void);
+
+struct event_pair {
+         evutil_socket_t fd;
+         struct event read_event;
+         struct event write_event;
+};
+void readcb(evutil_socket_t, short, void *);
+void writecb(evutil_socket_t, short, void *);
+struct event_pair *event_pair_new(struct event_base *base, evutil_socket_t fd)
+{
+        struct event_pair *p = malloc(sizeof(struct event_pair));
+        if (!p) return NULL;
+        p->fd = fd;
+        event_assign(&p->read_event, base, fd, EV_READ|EV_PERSIST, readcb, p);
+        event_assign(&p->write_event, base, fd, EV_WRITE|EV_PERSIST, writecb, p);
+        return p;
+}
+```
+
+##### 公共超时优化
+
+Libevent使用binary heap algorithm来跟踪每一个pending状态的时间的超时。这个算法对timeout大小有序的添加和删除一个超时事件可以达到O(lg n)的时间复杂度，这个方式是对timeout事件的时间是随机分布的一种优化，但是如果添加的1万个事件都是相同的5s后触发，这种情况下可以使用doubly-linked queue的方式，以O(1)的时间复杂度添加或删除一个event。但是使用队列的方式，对于添加随机timeout时间的事件需要O(n)，比二分法要差很多。
+
+Libevent提供了一种公共超时接口，它把有相同时间的事件放到一个队列中，而其他的随机的时间的事件放到了binary heap中。如果有大量事件的时间都是相同的，可以使用这种优化。
+
+```c
+struct timeval ten_seconds = { 10, 0 };
+
+void initialize_timeout(struct event_base *base)
+{
+    struct timeval tv_in = { 10, 0 };
+    const struct timeval *tv_out;
+    // 初始化一个公共超时结构
+    tv_out = event_base_init_common_timeout(base, &tv_in);
+    memcpy(&ten_seconds, tv_out, sizeof(struct timeval));
+}
+
+int my_event_add(struct event *ev, const struct timeval *tv)
+{
+    /* Note that ev must have the same event_base that we passed to
+       initialize_timeout */
+    if (tv && tv->tv_sec == 10 && tv->tv_usec == 0)
+        // 使用这个的会放在一个单独的queue中
+        return event_add(ev, &ten_seconds);
+    else
+        return event_add(ev, tv);
+}
+```
+
+#### eventloop
+
+```c
+#define EVLOOP_ONCE		0x01 //阻塞执行loop直到有事件active，然后执行这个active事件，直到所有的事件执行完才会返回
+#define EVLOOP_NONBLOCK		0x02 //非阻塞模式，检测是否有事件触发，然后执行这个事件的回调
+#define EVLOOP_NO_EXIT_ON_EMPTY	0x04 // 即使事件为空，也不会结束执行而返回，除非event_base_loopbreak()或event_base_loopexit()被调用
+
+int event_base_loop(struct event_base *base, int flags);
+// 等价于没有设置任何flags，相当于设置了EVLOOP_NONBLOCK
+int event_base_dispatch(struct event_base *base);
+// 设置的tv时间之后停止loop，会把当前所有需要callback的执行完，再退出
+int event_base_loopexit(struct event_base *base,
+                        const struct timeval *tv);
+// 执行完当前的那一个callback后，就立即退出
+int event_base_loopbreak(struct event_base *base);
+// 获取一个event loop是否是自己调用的退出
+int event_base_got_exit(struct event_base *base);
+int event_base_got_break(struct event_base *base);
+
+
+```
+
+默认情况下`event_base_loop`运行一个`event_base`直到这个base里面没有注册的事件即pending和active的事件。loop里面不断的检测注册的事件是否有被触发的，如果有，它把这个事件标记为active状态，并调用回调函数。
+
+##### 内部执行的伪代码
+
+默认情况下，event loop会先检测所有的事件状态，然后执行优先级最高的active的event的callback，然后再检测事件状态，再执行较低优先级的激活事件。如果需要在执行完一个callback后，立即检测一次事件状态，可以调用int event_base_loopcontinue(struct event_base *)。
+
+```c
+while (any events are registered with the loop,
+        or EVLOOP_NO_EXIT_ON_EMPTY was set) {
+
+    if (EVLOOP_NONBLOCK was set, or any events are already active)
+        If any registered events have triggered, mark them active.
+    else
+        Wait until at least one event has triggered, and mark it active.
+	// 这里是统一执行所有激活事件的callback，因此event_base_loopexit会把这里执行完
+    for (p = 0; p < n_priorities; ++p) {
+       if (any event with priority of p is active) {
+          Run all active events with priority of p.
+          // 只有这个优先级的事件被执行了，其他低优先级激活的event的都没有被执行
+          break; /* Do not run any events of a less important priority */
+       }
+    }
+
+    if (EVLOOP_ONCE was set or EVLOOP_NONBLOCK was set)
+       break;
+}
+```
+
+* 如果想在一个event的callback中获取当前的系统时间，而不想使用`gettimeofday()`这个系统调用导致性能问题，可以调用`int event_base_gettimeofday_cached(struct event_base *base, struct timeval *tv_out);`来获取Libevent的视角的当前这一轮callbacks开始执行的时间。如果当前没有在执行callbacks，这个接口调用`evutil_gettimeofday()`来获取当前的实际时间。如果你的callbacks的执行时间比较长，会导致这个接口获取的时间不是很精确，可以调用`int event_base_update_cache_time(struct event_base *base);`来立即更新时间
+
+* 调试程序时，可能需要把`event_base`中当前所有的事件和他们的状态获取到，使用`void event_base_dump_events(struct event_base *base, FILE *f);`
+
+* 对当前`event_base`中所有pending和active的event都执行一次一个函数。
+
+  ```c
+  typedef int (*event_base_foreach_event_cb)(const struct event_base *,
+      const struct event *, void *);
+  // event被迭代调用的顺序不确定，如果返回0，则会继续执行迭代，其他返回值会导致停止迭代
+  // 这个函数中不能修改event和event_base的任何状态，同时执行这个函数时，如果event_base会加锁，以免其他线程修改了这个event_base，所以这个函数不要耗时操作
+  int event_base_foreach_event(struct event_base *base,
+                               event_base_foreach_event_cb fn,
+                               void *arg);
+  ```
+
+  
+
+##### 使用举例
+
+```c
+/* Here's a callback function that calls loopbreak */
+void cb(int sock, short what, void *arg)
+{
+    struct event_base *base = arg;
+    event_base_loopbreak(base);
+}
+
+void main_loop(struct event_base *base, evutil_socket_t watchdog_fd)
+{
+    struct event *watchdog_event;
+
+    /* Construct a new event to trigger whenever there are any bytes to
+       read from a watchdog socket.  When that happens, we'll call the
+       cb function, which will make the loop exit immediately without
+       running any other active events at all.
+     */
+    watchdog_event = event_new(base, watchdog_fd, EV_READ, cb, base);
+
+    event_add(watchdog_event, NULL);
+
+    event_base_dispatch(base);
+}
+
+void run_base_with_ticks(struct event_base *base)
+{
+  struct timeval ten_sec;
+
+  ten_sec.tv_sec = 10;
+  ten_sec.tv_usec = 0;
+
+  /* Now we run the event_base for a series of 10-second intervals, printing
+     "Tick" after each.  For a much better way to implement a 10-second
+     timer, see the section below about persistent timer events. */
+  while (1) {
+     /* This schedules an exit ten seconds from now. */
+     event_base_loopexit(base, &ten_sec);
+
+     event_base_dispatch(base);
+     puts("Tick");
+  }
+}
+```
+
+
+
+
 
 #### bufferevent
 
