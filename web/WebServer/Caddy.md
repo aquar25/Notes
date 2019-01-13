@@ -260,6 +260,50 @@ I highly recommend to choose unique secret link, so that censor could not possib
 probe_resistance myownlink123.localhost
 ```
 
+#### filemanager
+
+可以实现在线文件的管理。目前插件已经被作者删除了（2019-01-13），目前没有替代。
+
+插件选项配置
+
+```json
+filemanager [baseurl] { #访问的地址
+    show           directory # 显示文件的目录
+    styles         filepath  # css文件地址
+    allow_new      [true|false] #是否允许新建文件
+    allow_edit     [true|false] #是否允许编辑文件                  
+    allow_commands [true|false] #是否允许执行Linux命令                      
+    allow_command  command #允许执行的 Linux命令
+    block_command  command #禁止执行的 Linux命令
+    allow          [url|dotfiles] #允许访问特定文件或文件夹，可以使用 dotfiles 来允许访问文件或文件夹
+    allow_r        regex
+    block          [url|dotfiles] #阻止访问特定文件或文件夹，可以使用 dotfiles 来阻止访问文件或文件夹，被阻止的文件或者文件夹将不会显示在 文件管理界面
+    block_r        regex
+    database       dbfile.db  #指定一个数据库文件
+}
+```
+
+##### 使用
+
+默认用户名密码都为admin
+
+```json
+0.0.0.0:8625 {
+	timeouts none
+	gzip
+filemanager /file { # http://127.0.0.1:8625/file
+	show ./
+	allow_new true
+	allow_edit true
+	allow_commands true
+	database filemgr.db
+}
+ 
+}
+```
+
+
+
 ### 其他
 
 #### Chrome
