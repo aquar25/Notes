@@ -832,6 +832,328 @@ void run_base_with_ticks(struct event_base *base)
 
 对Libevent的基于事件的核心功能进行了封装。应用可以获取到缓冲的可以读写的数据，而不用处理socket是否准备好读写。Windows上可以使用系统提供的IOCP机制。
 
+通常一个网络数据传输的过程如下：
+
+1. 把需要给一个连接发送的数据先缓存到一个buffer中
+2. 等待链接变为可写状态
+3. 写入尽可能多的数据
+4. 记下已经写了多少还有多少需要写，等待连接再次可以写入
+
+bufferevent实现了底层的传输，有一个读buffer和一个写buffer，当读或写的buffer中的数据足够后，回调用户提供的接口。
+
+##### 回调和水位
+
+每一个bufferevent有两个数据相关的回调函数，一个读数据回调，一个写数据回调。通过设置bufferevent的水位(watermarks)，可以控制读和写回调函数什么时候被执行。
+
+有四种类型的水位
+
+* 读-底限水位：默认值为0，当bufferevent的输入buffer的大小大于这个值时，触发读回调函数。因此默认只要有输入数据，就会触发读回调函数。
+* 读-高限水位：当bufferevent的输入buffer的大小高于这个水位后，bufferevent会停止向input buffer中写入数据，直到用户从输入buffer中提取了数据后，使当前的水位低于这个值。默认为无限，因此永远不会停止从socket读数据。
+* 写-低限水位：当输出buffer的水位低于这个值后，调用写回调函数，默认值为0，因此只有输出buffer为空的时候，才会回调写函数。
+* 写-高限水位：bufferevent没有直接使用，只有一个bufferevent作为另一个bufferevent的底层传输通道时才有用。参见`filtering bufferevents`
+
+##### 其他回调类型
+
+bufferevent也一些非数据类型的错误和事件的回调通知，例如连接关闭或者发生任何错误。
+
+`BEV_EVENT_READING`和`BEV_EVENT_WRITING`表示当前bufferevent正在执行读或写操作
+
+`BEV_EVENT_ERROR` `BEV_EVENT_TIMEOUT` `BEV_EVENT_EOF`  `BEV_EVENT_CONNECTED`
+
+##### 延迟回调(deferred callbacks)
+
+通常一个回调函数会在对应的条件满足后立即执行，但是当多个回调直接有依赖关系时，容易产生问题。例如一个回调向buffer中写输入数据，而另一个回调从buffer中读数据，这两个之间需要有序执行，否则可能会产生栈溢出。
+
+此时可以告诉bufferevent的回调函数需要被延迟执行，而不立即执行，这样这个回调会被放到`event_loop()`的队列中，在常规的事件回调之后被执行。
+
+##### bufferevent的设置标志
+
+* `BEV_OPT_CLOSE_ON_FREE`当bufferevent被释放后，其底层的socket也被关闭释放
+* `BEV_OPT_THREADSAFE`增加锁操作，从而支持多线程使用
+* `BEV_OPT_DEFER_CALLBACKS`注册的回调函数被放到队列延迟执行
+* `BEV_OPT_UNLOCK_CALLBACKS`当设置了线程安全标记后，bufferevent的锁在调用用户的回调时，还是会保持锁的状态，设置了这个标记后，bufferevent调用用户的回调函数时，会释放自己的锁。
+
+##### socket-based bufferevents
+
+使用event事件的接口，并用socket传输数据
+
+##### asynchronous-IO bufferevents
+
+使用Windows的IOCP接口发送和接收数据
+
+##### filtering bufferevents
+
+可以对传输的数据可以预处理，然后再传输
+
+##### paired bufferevents
+
+两个bufferevent互相传输数据
+
+```c
+// 创建一个基于socket的bufferevent
+struct bufferevent *bufferevent_socket_new(
+    struct event_base *base,
+    evutil_socket_t fd, // 注意确保这个socket是非阻塞的
+    enum bufferevent_options options);
+// 把一个socket设置为非阻塞的
+evutil_make_socket_nonblocking(evutil_socket_t fd);
+// 如果一个socket还没有连接，可以建立新连接，这样不用调用基于系统的connect接口
+// 如果调用这个接口时，还没有给bufferevent设置socket，则它会自动创建一个。如果已经有socket，调用这个接口后，Libevent会知道这个socket没有连接，在这个connect成功之前都不会读或写这个socket
+// 在socket连接建立之前给out buffer添加数据是允许的
+int bufferevent_socket_connect(struct bufferevent *bev,
+    struct sockaddr *address, int addrlen);
+// 使用主机名的方式，如果域名解析失败，触发对应错误事件
+int bufferevent_socket_connect_hostname(struct bufferevent *bev,
+    struct evdns_base *dns_base, int family, const char *hostname,
+    int port);    
+// 获取使用主机名连接时的错误
+int bufferevent_socket_get_dns_error(struct bufferevent *bev);
+```
+
+如果使用`bufferevent_socket_connect()`，被通知的事件为`BEV_EVENT_CONNECTED`，如果是自己使用系统的connect进行socket连接，被通知的事件为写事件。
+
+如果想自己调用connect，并获取`BEV_EVENT_CONNECTED`事件，需要在`connect()`返回-1后的错误码为`EAGAIN` 或` EINPROGRESS`后调用`bufferevent_socket_connect(bev, NULL, 0)`
+
+##### bufferevent的通用操作
+
+```c
+// 释放，只有当所有的回调函数都被执行了之后才会释放
+void bufferevent_free(struct bufferevent *bev);
+// 数据的回调
+typedef void (*bufferevent_data_cb)(struct bufferevent *bev, void *ctx);
+// 事件的回调类型
+typedef void (*bufferevent_event_cb)(struct bufferevent *bev,
+    short events, void *ctx);
+// 设置读、写和事件的回调函数，最后一个参数作为回调函数的ctx参数，所有的回调函数共用
+void bufferevent_setcb(struct bufferevent *bufev,
+    bufferevent_data_cb readcb, bufferevent_data_cb writecb,
+    bufferevent_event_cb eventcb, void *cbarg);
+// 对应的读接口
+void bufferevent_getcb(struct bufferevent *bufev,
+    bufferevent_data_cb *readcb_ptr,
+    bufferevent_data_cb *writecb_ptr,
+    bufferevent_event_cb *eventcb_ptr,
+    void **cbarg_ptr);
+// 设置一个bufferevent使用和禁用的事件，可以禁用EV_READ, EV_WRITE事件，bufferevent就不会读写数据了。默认新建的bufferevent可以写，不能读，因为没数据啊。
+void bufferevent_enable(struct bufferevent *bufev, short events);
+void bufferevent_disable(struct bufferevent *bufev, short events);
+// 获取一个bufferevent可用的事件
+short bufferevent_get_enabled(struct bufferevent *bufev);
+// 设置水位events是EV_READ设置读的，EV_WRITE设置写的。如果上限设置为0，则为无限
+void bufferevent_setwatermark(struct bufferevent *bufev, short events,
+    size_t lowmark, size_t highmark);
+// 获取读写buffer
+struct evbuffer *bufferevent_get_input(struct bufferevent *bufev);
+struct evbuffer *bufferevent_get_output(struct bufferevent *bufev);
+// 向写buffer中写入数据
+int bufferevent_write(struct bufferevent *bufev, const void *data,size_t size);
+int bufferevent_write_buffer(struct bufferevent *bufev, struct evbuffer *buf);
+// 从读buffer中读数据，返回值size_t为实际读的
+size_t bufferevent_read(struct bufferevent *bufev, void *data, size_t size);
+int bufferevent_read_buffer(struct bufferevent *bufev,
+    struct evbuffer *buf);
+// 设置一个超时时间，在这个时间后如果没有任何数据读或写，就会触发timeout事件，当设置的时间为NULL时，表示移除这个超时事件注册。只有bufferevent准备读或写时，这个超时设置才生效，如果当前的输入buffer是满的或者写被禁用或没有触发写事件，则不会计时。当读或写超时发生后，对应的读写操作被禁用，此时事件回调函数被调用，并通知时间为EV_EVENT_TIMEOUT|BEV_EVENT_READING或BEV_EVENT_TIMEOUT|BEV_EVENT_WRITING.
+void bufferevent_set_timeouts(struct bufferevent *bufev,
+    const struct timeval *timeout_read, const struct timeval *timeout_write);
+
+```
+
+##### Type-specific bufferevent functions
+
+```c
+// 通知bufferevent尽可能从底层socket上读或写数据到buffer中, BEV_FINISHED告诉对端没有数据了，socket-based的bufferevent不支持
+int bufferevent_flush(struct bufferevent *bufev,
+    short iotype, // EV_READ|EV_WRITE
+    enum bufferevent_flush_mode state); //BEV_NORMAL,BEV_FLUSH, or BEV_FINISHED
+// 设置bufferevent的优先级，本质同event_priority_set()
+int bufferevent_priority_set(struct bufferevent *bufev, int pri);
+int bufferevent_get_priority(struct bufferevent *bufev);
+// 设置基于socket的bufferevent的fd
+int bufferevent_setfd(struct bufferevent *bufev, evutil_socket_t fd);
+evutil_socket_t bufferevent_getfd(struct bufferevent *bufev);
+// 获取event_base
+struct event_base *bufferevent_get_base(struct bufferevent *bev);
+// 获取这个bufev底层传输使用的bufferevent (filtering bufferevents)
+struct bufferevent *bufferevent_get_underlying(struct bufferevent *bufev);
+// 手动对bufferevent加锁，其中的evbuffer也会被锁，这样保证对bufferevent的操作是原子的，需要设置了BEV_OPT_THREADSAFE标记才行。加锁操作是迭代的，如果对一个bufferevent锁了两次，那么就要解锁两次
+void bufferevent_lock(struct bufferevent *bufev);
+void bufferevent_unlock(struct bufferevent *bufev);
+```
+
+###### 举例
+
+```c
+void eventcb(struct bufferevent *bev, short events, void *ptr)
+{
+    if (events & BEV_EVENT_CONNECTED) {
+         /* We're connected to 127.0.0.1:8080.   Ordinarily we'd do
+            something here, like start reading or writing. */
+    } else if (events & BEV_EVENT_ERROR) {
+         /* An error occured while connecting. */
+    }
+}
+
+int main_loop(void)
+{
+    struct event_base *base;
+    struct bufferevent *bev;
+    struct sockaddr_in sin;
+
+    base = event_base_new();
+
+    memset(&sin, 0, sizeof(sin));
+    sin.sin_family = AF_INET;   
+    sin.sin_addr.s_addr = htonl(0x7f000001); /* 127.0.0.1 */
+    sin.sin_port = htons(8080); /* Port 8080 */
+
+    bev = bufferevent_socket_new(base, -1, BEV_OPT_CLOSE_ON_FREE);
+
+    bufferevent_setcb(bev, NULL, NULL, eventcb, NULL);
+
+    if (bufferevent_socket_connect(bev,
+        (struct sockaddr *)&sin, sizeof(sin)) < 0) {
+        /* Error starting connection */
+        bufferevent_free(bev);
+        return -1;
+    }
+
+    event_base_dispatch(base);
+    return 0;
+}
+// -----------------------设置水位举例---------------------------------
+struct info {
+    const char *name;
+    size_t total_drained;
+};
+
+void read_callback(struct bufferevent *bev, void *ctx)
+{
+    struct info *inf = ctx;
+    struct evbuffer *input = bufferevent_get_input(bev);
+    size_t len = evbuffer_get_length(input);
+    if (len) {
+        inf->total_drained += len;
+        evbuffer_drain(input, len);
+        printf("Drained %lu bytes from %s\n",
+             (unsigned long) len, inf->name);
+    }
+}
+
+void event_callback(struct bufferevent *bev, short events, void *ctx)
+{
+    struct info *inf = ctx;
+    struct evbuffer *input = bufferevent_get_input(bev);
+    int finished = 0;
+
+    if (events & BEV_EVENT_EOF) {
+        size_t len = evbuffer_get_length(input);
+        printf("Got a close from %s.  We drained %lu bytes from it, "
+            "and have %lu left.\n", inf->name,
+            (unsigned long)inf->total_drained, (unsigned long)len);
+        finished = 1;
+    }
+    if (events & BEV_EVENT_ERROR) {
+        printf("Got an error from %s: %s\n",
+            inf->name, evutil_socket_error_to_string(EVUTIL_SOCKET_ERROR()));
+        finished = 1;
+    }
+    if (finished) {
+        free(ctx);
+        bufferevent_free(bev);
+    }
+}
+
+struct bufferevent *setup_bufferevent(void)
+{
+    struct bufferevent *b1 = NULL;
+    struct info *info1;
+
+    info1 = malloc(sizeof(struct info));
+    info1->name = "buffer 1";
+    info1->total_drained = 0;
+
+    /* ... Here we should set up the bufferevent and make sure it gets
+       connected... */
+
+    /* Trigger the read callback only whenever there is at least 128 bytes
+       of data in the buffer. */
+    bufferevent_setwatermark(b1, EV_READ, 128, 0);
+
+    bufferevent_setcb(b1, read_callback, NULL, event_callback, info1);
+
+    bufferevent_enable(b1, EV_READ); /* Start reading. */
+    return b1;
+}
+
+///--------------------------读写数据-----------------------------------////
+void
+read_callback_uppercase(struct bufferevent *bev, void *ctx)
+{
+        /* This callback removes the data from bev's input buffer 128
+           bytes at a time, uppercases it, and starts sending it
+           back.
+           (Watch out!  In practice, you shouldn't use toupper to implement
+           a network protocol, unless you know for a fact that the current
+           locale is the one you want to be using.)
+         */
+        char tmp[128];
+        size_t n;
+        int i;
+        while (1) {
+                n = bufferevent_read(bev, tmp, sizeof(tmp));
+                if (n <= 0)
+                    break; /* No more data. */
+                for (i=0; i<n; ++i)
+                    tmp[i] = toupper(tmp[i]);
+                bufferevent_write(bev, tmp, n);
+        }
+}
+
+struct proxy_info {
+        struct bufferevent *other_bev;
+};
+void
+read_callback_proxy(struct bufferevent *bev, void *ctx)
+{
+        /* You might use a function like this if you're implementing
+           a simple proxy: it will take data from one connection (on
+           bev), and write it to another, copying as little as
+           possible. */
+        struct proxy_info *inf = ctx;
+        bufferevent_read_buffer(bev,
+            bufferevent_get_output(inf->other_bev));
+}
+
+struct count {
+        unsigned long last_fib[2];
+};
+
+void
+write_callback_fibonacci(struct bufferevent *bev, void *ctx)
+{
+        /* Here's a callback that adds some Fibonacci numbers to the
+           output buffer of bev.  It stops once we have added 1k of
+           data; once this data is drained, we'll add more. */
+        struct count *c = ctx;
+        struct evbuffer *tmp = evbuffer_new();
+        while (evbuffer_get_length(tmp) < 1024) {
+                 unsigned long next = c->last_fib[0] + c->last_fib[1];
+                 c->last_fib[0] = c->last_fib[1];
+                 c->last_fib[1] = next;
+
+                 evbuffer_add_printf(tmp, "%lu", next);
+        }
+
+        /* Now we add the whole contents of tmp to bev. */
+        bufferevent_write_buffer(bev, tmp);
+
+        /* We don't need tmp any longer. */
+        evbuffer_free(tmp);
+}
+```
+
+
+
 #### evbuffer
 
 bufferevent的内部的buffer实现
