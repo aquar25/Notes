@@ -1156,4 +1156,327 @@ write_callback_fibonacci(struct bufferevent *bev, void *ctx)
 
 #### evbuffer
 
-bufferevent的内部的buffer实现
+bufferevent的内部的buffer实现。
+
+evbuffer实现了一个字节类型的队列，对从队尾添加数据和队首删除数据做了优化。
+
+##### 基本接口
+
+```c
+// 创建或释放buffer
+struct evbuffer *evbuffer_new(void);
+void evbuffer_free(struct evbuffer *buf);
+// 线程安全加锁，默认不支持锁
+int evbuffer_enable_locking(struct evbuffer *buf, void *lock);
+void evbuffer_lock(struct evbuffer *buf);
+void evbuffer_unlock(struct evbuffer *buf);
+// 获取大小，单位字节
+size_t evbuffer_get_length(const struct evbuffer *buf);
+// evbuffer中的内存可能被分割为多个块存储，这个函数返回第一块的大小
+size_t evbuffer_get_contiguous_space(const struct evbuffer *buf);
+// 添加数据到队尾
+int evbuffer_add(struct evbuffer *buf, const void *data, size_t datlen);
+// 添加类似printf输出的格式化子串到队尾，返回添加的字节数
+int evbuffer_add_printf(struct evbuffer *buf, const char *fmt, ...)
+int evbuffer_add_vprintf(struct evbuffer *buf, const char *fmt, va_list ap);
+// 扩充buffer的大小到datlen
+int evbuffer_expand(struct evbuffer *buf, size_t datlen);
+// evbuffer之间的数据移动，把src的全部移到dst中
+int evbuffer_add_buffer(struct evbuffer *dst, struct evbuffer *src);
+// 把src的前datlen字节数量的数据移到dst中
+int evbuffer_remove_buffer(struct evbuffer *src, struct evbuffer *dst,
+    size_t datlen);
+// 在buffer前插入数据，bufferevent的evbuffer不能使用这两个接口
+int evbuffer_prepend(struct evbuffer *buf, const void *data, size_t size);
+int evbuffer_prepend_buffer(struct evbuffer *dst, struct evbuffer* src);
+// 删除数据
+int evbuffer_drain(struct evbuffer *buf, size_t len);
+// 删除并拷贝到data中，返回实际删除字节数量
+int evbuffer_remove(struct evbuffer *buf, void *data, size_t datlen);
+// 从头开始拷贝datlen个字节出来
+ev_ssize_t evbuffer_copyout(struct evbuffer *buf, void *data, size_t datlen);
+// 从pos开始拷贝datlen个字节出来
+ev_ssize_t evbuffer_copyout_from(struct evbuffer *buf,
+     const struct evbuffer_ptr *pos,
+     void *data_out, size_t datlen);
+// 如果上面两个拷贝太慢用这个
+evbuffer_peek();
+// 一次读取一行数据出来，返回的char*是新allocated NUL-terminated string（很多网络协议都以行为单位）
+char *evbuffer_readln(struct evbuffer *buffer, size_t *n_read_out,
+    enum evbuffer_eol_style eol_style);
+```
+
+只有当你对evbuffer进行了多个操作的时候才需要加锁，如果只是一个操作，不用加锁，本身就是原子的，不会插入其他操作。
+
+##### 内存块(chunk)
+
+由于数据可能被分成了多个块存储，如果我们想对最开头的一部分数据按字节顺序解析，此时如果刚好被分割为不同的块，就不连续了。此时需要使用
+
+`unsigned char *evbuffer_pullup(struct evbuffer *buf, ev_ssize_t size);`
+
+把前size字节的数据放到连续的块中，如果size为负数，表示全部都要排到一个块中，函数返回内存块的首地址。由于可能存在大量内存的移动操作，可能导致很慢。
+
+```c
+#include <event2/buffer.h>
+#include <event2/util.h>
+#include <string.h>
+int parse_socks4(struct evbuffer *buf, ev_uint16_t *port, ev_uint32_t *addr)
+{
+    /* Let's parse the start of a SOCKS4 request!  The format is easy:
+     * 1 byte of version, 1 byte of command, 2 bytes destport, 4 bytes of
+     * destip. */
+    unsigned char *mem;
+    mem = evbuffer_pullup(buf, 8);
+    if (mem == NULL) {
+        /* Not enough data in the buffer */
+        return 0;
+    } else if (mem[0] != 4 || mem[1] != 1) {
+        /* Unrecognized protocol or command */
+        return -1;
+    } else {
+        memcpy(port, mem+2, 2);
+        memcpy(addr, mem+4, 4);
+        *port = ntohs(*port);
+        *addr = ntohl(*addr);
+        /* Actually remove the data from the buffer now that we know we
+           like it. */
+        evbuffer_drain(buf, 8);
+        return 1;
+    }
+}
+
+int get_record(struct evbuffer *buf, size_t *size_out, char **record_out)
+{
+    /* Let's assume that we're speaking some protocol where records
+       contain a 4-byte size field in network order, followed by that
+       number of bytes.  We will return 1 and set the 'out' fields if we
+       have a whole record, return 0 if the record isn't here yet, and
+       -1 on error.  */
+    size_t buffer_len = evbuffer_get_length(buf);
+    ev_uint32_t record_len;
+    char *record;
+
+    if (buffer_len < 4)
+       return 0; /* The size field hasn't arrived. */
+
+   /* We use evbuffer_copyout here so that the size field will stay on
+       the buffer for now. */
+    evbuffer_copyout(buf, &record_len, 4);
+    /* Convert len_buf into host order. */
+    record_len = ntohl(record_len);
+    if (buffer_len < record_len + 4)
+        return 0; /* The record hasn't arrived */
+
+    /* Okay, _now_ we can remove the record. */
+    record = malloc(record_len);
+    if (record == NULL)
+        return -1;
+
+    evbuffer_drain(buf, 4);
+    evbuffer_remove(buf, record, record_len);
+
+    *record_out = record;
+    *size_out = record_len;
+    return 1;
+}
+```
+
+##### 在一个evbuffer中遍历和查找
+
+`evbuffer_ptr`结构指向`evbuffer`中的一个位置。
+
+任何修改`evbuffer`的内容或者移动内部的内存布局，都会导致`evbuffer_ptr`的值不可靠
+
+```c
+struct evbuffer_ptr {
+        ev_ssize_t pos; //惟一用户可以使用的公共字段，表示偏移位置
+        struct {
+                /* internal fields */
+        } _internal; // 用户不要用
+};
+// 在buffer中从start位置开始找len长度的what子串，返回找到的位置，如果start为空，则从头开始找
+struct evbuffer_ptr evbuffer_search(struct evbuffer *buffer,
+    const char *what, size_t len, const struct evbuffer_ptr *start);
+struct evbuffer_ptr evbuffer_search_range(struct evbuffer *buffer,
+    const char *what, size_t len, const struct evbuffer_ptr *start,
+    const struct evbuffer_ptr *end);
+struct evbuffer_ptr evbuffer_search_eol(struct evbuffer *buffer,
+    struct evbuffer_ptr *start, size_t *eol_len_out,
+    enum evbuffer_eol_style eol_style);
+// 移动一个指针的位置
+enum evbuffer_ptr_how {
+        EVBUFFER_PTR_SET, // 设置绝对位置
+        EVBUFFER_PTR_ADD   //向前进一定的位置
+};
+int evbuffer_ptr_set(struct evbuffer *buffer, 
+                     struct evbuffer_ptr *pos, // 被移动的指针    
+                     size_t position,          // 移动多少 
+                     enum evbuffer_ptr_how how);//移动的方式
+```
+
+##### 使用evbuffer中间的数据而不拷贝出来
+
+我只想看看里面的数据，不想拷贝，不然太慢了呢
+
+`evbuffer_peek()`需要一个`evbuffer_iovec`结构的数组参数，数组长度为`n_vec`,他把每一个内部的块的指针放到`iov_base`，块长度放到`iov_len`。如果`n_vec`为负数，则会填满你给的结构体数组。返回的数据不能修改，否则导致不确定错误。如果buffer中的数据已经被修改了，则修改之前返回的`evbuffer_iovec`是无效的。注意多线程加锁
+
+```c
+struct evbuffer_iovec {
+	void *iov_base;
+	size_t iov_len;
+};
+
+int evbuffer_peek(struct evbuffer *buffer, ev_ssize_t len,
+    struct evbuffer_ptr *start_at,
+    struct evbuffer_iovec *vec_out, int n_vec);
+```
+
+* 举例
+
+```c
+{
+    /* Let's look at the first two chunks of buf, and write them to stderr. */
+    int n, i;
+    struct evbuffer_iovec v[2];
+    n = evbuffer_peek(buf, -1, NULL, v, 2);
+    for (i=0; i<n; ++i) { /* There might be less than two chunks available. */
+        fwrite(v[i].iov_base, 1, v[i].iov_len, stderr);
+    }
+}
+
+{
+    /* Let's send the first 4906 bytes to stdout via write. */
+    int n, i, r;
+    struct evbuffer_iovec *v;
+    size_t written = 0;
+
+    /* determine how many chunks we need. */
+    n = evbuffer_peek(buf, 4096, NULL, NULL, 0);
+    /* Allocate space for the chunks.  This would be a good time to use
+       alloca() if you have it. */
+    v = malloc(sizeof(struct evbuffer_iovec)*n);
+    /* Actually fill up v. */
+    n = evbuffer_peek(buf, 4096, NULL, v, n);
+    for (i=0; i<n; ++i) {
+        size_t len = v[i].iov_len;
+        if (written + len > 4096)
+            len = 4096 - written;
+        r = write(1 /* stdout */, v[i].iov_base, len);
+        if (r<=0)
+            break;
+        /* We keep track of the bytes written separately; if we don't,
+           we may write more than 4096 bytes if the last chunk puts
+           us over the limit. */
+        written += len;
+    }
+    free(v);
+}
+
+{
+    /* Let's get the first 16K of data after the first occurrence of the
+       string "start\n", and pass it to a consume() function. */
+    struct evbuffer_ptr ptr;
+    struct evbuffer_iovec v[1];
+    const char s[] = "start\n";
+    int n_written;
+
+    ptr = evbuffer_search(buf, s, strlen(s), NULL);
+    if (ptr.pos == -1)
+        return; /* no start string found. */
+
+    /* Advance the pointer past the start string. */
+    if (evbuffer_ptr_set(buf, &ptr, strlen(s), EVBUFFER_PTR_ADD) < 0)
+        return; /* off the end of the string. */
+
+    while (n_written < 16*1024) {
+        /* Peek at a single chunk. */
+        if (evbuffer_peek(buf, -1, &ptr, v, 1) < 1)
+            break;
+        /* Pass the data to some user-defined consume function */
+        consume(v[0].iov_base, v[0].iov_len);
+        n_written += v[0].iov_len;
+
+        /* Advance the pointer so we see the next chunk next time. */
+        if (evbuffer_ptr_set(buf, &ptr, v[0].iov_len, EVBUFFER_PTR_ADD)<0)
+            break;
+    }
+}
+```
+
+##### 直接给evbuffer添加数据
+
+有时不想先把一个数据拷贝到一个字节数组后，再拷贝到evbuffer中，就想直接把数据放到buffer中。
+
+```c
+// 先扩展size空间，并把扩展空间的结构指针给你, n_vecs至少为1，不然怎么给你分地方
+// 出于性能考虑，最好至少2个vector传进去。函数返回他实际需要的vector的个数
+int evbuffer_reserve_space(struct evbuffer *buf, ev_ssize_t size,
+    struct evbuffer_iovec *vec, int n_vecs);
+// 把数据给vec后，提交给evbuffer，你也可以不把申请的都用了
+int evbuffer_commit_space(struct evbuffer *buf,
+    struct evbuffer_iovec *vec, int n_vecs);
+
+/* Suppose we want to fill a buffer with 2048 bytes of output from a
+   generate_data() function, without copying. */
+struct evbuffer_iovec v[2];
+int n, i;
+size_t n_to_add = 2048;
+
+/* Reserve 2048 bytes.*/
+n = evbuffer_reserve_space(buf, n_to_add, v, 2);
+if (n<=0)
+   return; /* Unable to reserve the space for some reason. */
+
+for (i=0; i<n && n_to_add > 0; ++i) {
+   size_t len = v[i].iov_len;
+   if (len > n_to_add) /* Don't write more than n_to_add bytes. */
+      len = n_to_add;
+   if (generate_data(v[i].iov_base, len) < 0) {
+      /* If there was a problem during data generation, we can just stop
+         here; no data will be committed to the buffer. */
+      return;
+   }
+   /* Set iov_len to the number of bytes we actually wrote, so we
+      don't commit too much. */
+   v[i].iov_len = len;
+}
+
+/* We commit the space here.  Note that we give it 'i' (the number of
+   vectors we actually used) rather than 'n' (the number of vectors we
+   had available. */
+if (evbuffer_commit_space(buf, v, i) < 0)
+   return; /* Error committing */
+
+//-------------------错误用法--------------------------
+/* Here are some mistakes you can make with evbuffer_reserve().
+   DO NOT IMITATE THIS CODE. */
+struct evbuffer_iovec v[2];
+
+{
+  /* Do not use the pointers from evbuffer_reserve_space() after
+     calling any functions that modify the buffer. */
+  evbuffer_reserve_space(buf, 1024, v, 2);
+  evbuffer_add(buf, "X", 1);
+  /* WRONG: This next line won't work if evbuffer_add needed to rearrange
+     the buffer's contents.  It might even crash your program. Instead,
+     you add the data before calling evbuffer_reserve_space. */
+  memset(v[0].iov_base, 'Y', v[0].iov_len-1);
+  evbuffer_commit_space(buf, v, 1);
+}
+
+{
+  /* Do not modify the iov_base pointers. */
+  const char *data = "Here is some data";
+  evbuffer_reserve_space(buf, strlen(data), v, 1);
+  /* WRONG: The next line will not do what you want.  Instead, you
+     should _copy_ the contents of data into v[0].iov_base. */
+  v[0].iov_base = (char*) data;
+  v[0].iov_len = strlen(data);
+  /* In this case, evbuffer_commit_space might give an error if you're
+     lucky */
+  evbuffer_commit_space(buf, v, 1);
+}
+```
+
+
+
