@@ -1204,6 +1204,9 @@ evbuffer_peek();
 // 一次读取一行数据出来，返回的char*是新allocated NUL-terminated string（很多网络协议都以行为单位）
 char *evbuffer_readln(struct evbuffer *buffer, size_t *n_read_out,
     enum evbuffer_eol_style eol_style);
+// 设置buffer为add- or remove-only bufferevent内部使用这两个接口来阻止意外的修改evbuffer
+int evbuffer_freeze(struct evbuffer *buf, int at_front);
+int evbuffer_unfreeze(struct evbuffer *buf, int at_front);
 ```
 
 只有当你对evbuffer进行了多个操作的时候才需要加锁，如果只是一个操作，不用加锁，本身就是原子的，不会插入其他操作。
@@ -1476,6 +1479,177 @@ struct evbuffer_iovec v[2];
      lucky */
   evbuffer_commit_space(buf, v, 1);
 }
+```
+
+##### 读socket数据接口
+
+Unix类型的系统可以读写所有支持读写操作的fd，Windows上只支持socket
+
+```c
+int evbuffer_write(struct evbuffer *buffer, evutil_socket_t fd);
+int evbuffer_write_atmost(struct evbuffer *buffer, evutil_socket_t fd,
+        ev_ssize_t howmuch);
+int evbuffer_read(struct evbuffer *buffer, evutil_socket_t fd, int howmuch);
+```
+
+##### 回调函数
+
+当有数据添加到buffer或从buffer中删除，会触发注册的回调函数
+
+```c
+struct evbuffer_cb_info {
+        size_t orig_size;
+        size_t n_added;
+        size_t n_deleted;
+};
+
+typedef void (*evbuffer_cb_func)(struct evbuffer *buffer,
+    const struct evbuffer_cb_info *info, void *arg);
+
+struct evbuffer_cb_entry; // 一个空结构体用来引用回调函数的实例，删除的时候要用
+// 一个buffer上可注册多个回调函数，添加新的不会删除旧的
+struct evbuffer_cb_entry *evbuffer_add_cb(struct evbuffer *buffer,
+    evbuffer_cb_func cb, void *cbarg);
+int evbuffer_remove_cb_entry(struct evbuffer *buffer,
+    struct evbuffer_cb_entry *ent);
+int evbuffer_remove_cb(struct evbuffer *buffer, evbuffer_cb_func cb,
+    void *cbarg);
+// 临时禁用一个回调
+#define EVBUFFER_CB_ENABLED 1
+int evbuffer_cb_set_flags(struct evbuffer *buffer,
+                          struct evbuffer_cb_entry *cb,
+                          ev_uint32_t flags);
+int evbuffer_cb_clear_flags(struct evbuffer *buffer,
+                          struct evbuffer_cb_entry *cb,
+                          ev_uint32_t flags);
+// 延迟调用一个buffer的回调
+int evbuffer_defer_callbacks(struct evbuffer *buffer, struct event_base *base);
+
+
+/* Here's a callback that remembers how many bytes we have drained in
+   total from the buffer, and prints a dot every time we hit a
+   megabyte. */
+struct total_processed {
+    size_t n;
+};
+void count_megabytes_cb(struct evbuffer *buffer,
+    const struct evbuffer_cb_info *info, void *arg)
+{
+    struct total_processed *tp = arg;
+    size_t old_n = tp->n;
+    int megabytes, i;
+    tp->n += info->n_deleted;
+    megabytes = ((tp->n) >> 20) - (old_n >> 20);
+    for (i=0; i<megabytes; ++i)
+        putc('.', stdout);
+}
+
+void operation_with_counted_bytes(void)
+{
+    struct total_processed *tp = malloc(sizeof(*tp));
+    struct evbuffer *buf = evbuffer_new();
+    tp->n = 0;
+    evbuffer_add_cb(buf, count_megabytes_cb, tp);
+
+    /* Use the evbuffer for a while.  When we're done: */
+    evbuffer_free(buf);
+    free(tp);
+}
+```
+
+##### 避免数据拷贝
+
+网络数据传输中希望快速传输数据，因此不想到处拷贝数据
+
+```c
+typedef void (*evbuffer_ref_cleanup_cb)(const void *data,
+    size_t datalen, void *extra);
+// 在buffer的末尾添加数据，但是不会拷贝，buffer里面只是存储了指向外部数据的指针，当buffer用完后，会调用clearup函数清理数据
+int evbuffer_add_reference(struct evbuffer *outbuf,
+    const void *data, size_t datlen,
+    evbuffer_ref_cleanup_cb cleanupfn, void *extra);
+
+/* In this example, we have a bunch of evbuffers that we want to use to
+   spool a one-megabyte resource out to the network.  We do this
+   without keeping any more copies of the resource in memory than
+   necessary. */
+
+#define HUGE_RESOURCE_SIZE (1024*1024)
+struct huge_resource {
+    /* We keep a count of the references that exist to this structure,
+       so that we know when we can free it. */
+    int reference_count;
+    char data[HUGE_RESOURCE_SIZE];
+};
+
+struct huge_resource *new_resource(void) {
+    struct huge_resource *hr = malloc(sizeof(struct huge_resource));
+    hr->reference_count = 1;
+    /* Here we should fill hr->data with something.  In real life,
+       we'd probably load something or do a complex calculation.
+       Here, we'll just fill it with EEs. */
+    memset(hr->data, 0xEE, sizeof(hr->data));
+    return hr;
+}
+
+void free_resource(struct huge_resource *hr) {
+    --hr->reference_count;
+    if (hr->reference_count == 0)
+        free(hr);
+}
+
+static void cleanup(const void *data, size_t len, void *arg) {
+    free_resource(arg);
+}
+
+/* This is the function that actually adds the resource to the
+   buffer. */
+void spool_resource_to_evbuffer(struct evbuffer *buf,
+    struct huge_resource *hr)
+{
+    ++hr->reference_count;
+    evbuffer_add_reference(buf, hr->data, HUGE_RESOURCE_SIZE,
+        cleanup, hr);
+}
+```
+
+###### 把文件直接添加到buffer
+
+当操作系统支持`splice()` 或`sendfile()`时，Libevent在执行`evbuffer_write()时`会直接使用这两个 接口把数据通过fd发送到网络，而不会先把数据拷贝到内存，如果系统不支持这两个，但是支持`mmap()`，Libevent会mmap文件，而系统内核不会把数据拷贝到用户空间。如果都没有，才会把文件数据先拷贝到内存。当数据被flushed后，文件会被关闭。如果不想关闭文件，可以使用`file_segment`接口
+
+由于`evbuffer_add_file() `有文件的所有权，当希望多次添加同一个文件时效率会很低。`evbuffer_file_segment`内部使用系统支持的`sendfile`,`splice`,`mmap`,`CreateFileMapping`,或者`malloc()` `read()`，默认使用最轻量级的机制对文件进行操作。可以设置标志了控制不使用哪种机制。
+
+```c
+int evbuffer_add_file(struct evbuffer *output, int fd, 
+                      ev_off_t offset, // 文件起始位置
+                      size_t length);   // 读入的数据长度
+
+struct evbuffer_file_segment;
+// 创建的结构体表示了一个文件中offset开始length长度的数据
+struct evbuffer_file_segment *evbuffer_file_segment_new(
+	int fd, ev_off_t offset, ev_off_t length, unsigned flags);
+// 实际的空间只会在没有evbuffer再使用这个file segment才会被释放
+void evbuffer_file_segment_free(struct evbuffer_file_segment *seg);
+// 这里的offset是evbuffer_file_segment的，而不是原来文件的了
+int evbuffer_add_file_segment(struct evbuffer *buf,
+    struct evbuffer_file_segment *seg, ev_off_t offset, ev_off_t length);
+// 可以注册一个callback来监听什么时候一个evbuffer_file_segment没有被引用，并将要被释放，由于这个evbuffer_file_segment即将被释放了，所以不能再回调函数里把它赋给一个evbuffer了
+typedef void (*evbuffer_file_segment_cleanup_cb)(
+    struct evbuffer_file_segment const *seg, int flags, void *arg);
+
+void evbuffer_file_segment_add_cleanup_cb(struct evbuffer_file_segment *seg,
+	evbuffer_file_segment_cleanup_cb cb, void *arg);
+```
+
+###### 以引用方式把一个evbuffer添加到另一个evbuffer
+
+这种方式把一个evbuffer的内容的以引用方式添加给了另一个evbuffer，就好像是把outbuf的数据拷贝到了inbuf，但没有实际的拷贝操作。后续对inbuf的操作不会在outbuff上体现。
+
+这种引用不支持嵌套操作，例如一个outbuf不能作为另一个的inbuf。
+
+```c
+int evbuffer_add_buffer_reference(struct evbuffer *outbuf,
+    struct evbuffer *inbuf);
 ```
 
 
