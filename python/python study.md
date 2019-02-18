@@ -1401,9 +1401,14 @@ Ubuntu16.04自带的python3.5需要使用
 通过编写requirements.txt，并执行pip install -r requirements.txt来安装依赖的所有库
 通过在该环境下执行：`pip freeze > requirements.txt` 来导出该环境已经安装的依赖库，方便移植
 
-- 在pycharm中使用virtualenv
-  setting---Project Interpreter---齿轮图标---add local---选择自己已经创建好的虚拟环境中的python.exe
-  不要使用pycharm来创建新的virtualenv(版本比较老，还不好用)
+##### 在pycharm中使用virtualenv
+
+setting---Project Interpreter---齿轮图标---add local---选择自己已经创建好的虚拟环境中的python.exe
+不要使用pycharm来创建新的virtualenv(版本比较老，还不好用)
+
+##### 在VS Code使用virtualenv
+
+`File`--`Preferences`--`Settings`, 搜索`python:venv`,设置`Python:Venv Path`的值为虚拟环境的上一级目录。例如在`D:\py36`为一个虚拟环境的根目录，其中`pyvenv`就在这个目录。在设置时需要把`D:\`作为`"python.venvPath": "D:\\", `的值，VS会搜索这个目录下的所有虚拟环境，并给列举出来
 
 #### Buildout
 
